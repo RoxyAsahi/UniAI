@@ -1,0 +1,21 @@
+server:
+  port: "8080"
+
+# JWT secret — must match the secret used by the parent UniChat project
+# so that tokens issued there are valid here too.
+secret: "your-jwt-secret-here"
+
+# Database — choose "sqlite" for local dev, "mysql" for production
+db:
+  driver: sqlite          # "sqlite" | "mysql"
+  sqlite_path: uqa.db     # used when driver = sqlite
+
+  # MySQL settings (used when driver = mysql)
+  host: 127.0.0.1
+  port: 3306
+  user: root
+  password: ""
+  name: uqa_db
+
+log:
+  ignore_console: false   # set true to suppress stdout logging

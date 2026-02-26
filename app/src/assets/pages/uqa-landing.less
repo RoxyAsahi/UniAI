@@ -1,0 +1,184 @@
+// ============================================================
+// UQA Landing Page — app-shell-aware layout
+// ============================================================
+@import "./uqa-common.less";
+
+// Landing page root
+.uqa-landing-page {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  background: #F7F8FA;
+  scrollbar-width: thin;
+
+  .welcome-card {
+    margin-bottom: 20px;
+    padding: 24px;
+    border-radius: 20px;
+    background: linear-gradient(135deg, #00C476 0%, #00A868 50%, #4A90E2 100%);
+    color: white;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 4px 16px rgba(0, 196, 118, 0.15);
+
+    &::after {
+      content: '';
+      position: absolute;
+      top: -30%;
+      right: -10%;
+      width: 180px;
+      height: 180px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 50%;
+      pointer-events: none;
+    }
+
+    .welcome-title {
+      font-size: 22px;
+      font-weight: 700;
+      margin: 0 0 8px 0;
+    }
+
+    .welcome-desc {
+      font-size: 14px;
+      opacity: 0.9;
+      margin: 0 0 20px 0;
+      max-width: 80%;
+      line-height: 1.6;
+    }
+
+    .start-btn {
+      display: inline-flex;
+      align-items: center;
+      padding: 10px 24px;
+      border-radius: 999px;
+      background-color: rgba(255, 255, 255, 0.95);
+      color: #00A868;
+      font-weight: 600;
+      font-size: 14px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+
+      &:hover {
+        transform: scale(1.03);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      }
+
+      &:active {
+        transform: scale(0.98);
+      }
+    }
+  }
+
+  .history-section {
+    .section-header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 12px;
+      padding: 0 4px;
+    }
+
+    .section-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #1D2129;
+      margin: 0;
+    }
+
+    .loading-state,
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: #86909C;
+      background: #FFFFFF;
+      border-radius: 20px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+      font-size: 14px;
+
+      p {
+        margin: 0;
+      }
+    }
+
+    .history-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .history-card {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      background: #FFFFFF;
+      border-radius: 16px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+
+      &:hover {
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+        transform: translateY(-1px);
+      }
+
+      &:active {
+        transform: translateY(0);
+      }
+
+      .history-info {
+        .history-date {
+          font-size: 13px;
+          color: #86909C;
+          display: flex;
+          align-items: center;
+          margin-bottom: 4px;
+        }
+
+        .history-name {
+          font-size: 15px;
+          font-weight: 500;
+          color: #1D2129;
+        }
+      }
+
+      .history-score {
+        display: flex;
+        align-items: baseline;
+
+        .score-value {
+          font-size: 24px;
+          font-weight: 700;
+          color: #00C476;
+          font-family: "DIN Alternate", "Roboto", sans-serif;
+        }
+
+        .score-label {
+          font-size: 13px;
+          color: #86909C;
+          margin-left: 2px;
+        }
+      }
+    }
+  }
+}
+
+// Mobile adjustments
+@media (max-width: 480px) {
+  .uqa-landing-page {
+    .welcome-card {
+      padding: 20px;
+
+      .welcome-title {
+        font-size: 20px;
+      }
+
+      .welcome-desc {
+        max-width: 100%;
+      }
+    }
+  }
+}

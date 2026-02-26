@@ -1,0 +1,90 @@
+// ============================================================
+// UQA Shared Styles — used across all UQA pages
+// ============================================================
+
+// Page header (sticky top bar with back button + title)
+.uqa-page-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #FFFFFF;
+  border-bottom: 1px solid #F2F3F5;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+
+  .back-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: #F2F3F5;
+    border: none;
+    color: #1D2129;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.2s;
+    // reset button defaults
+    appearance: none;
+    -webkit-appearance: none;
+    padding: 0;
+    font: inherit;
+    line-height: 1;
+
+    &:hover {
+      background: #E5E6EB;
+    }
+
+    &:active {
+      transform: scale(0.95);
+    }
+  }
+
+  .page-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #1D2129;
+    margin: 0;
+    flex: 1;
+    line-height: 1.4;
+  }
+
+  .header-action-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: #F2F3F5;
+    border: none;
+    color: #1D2129;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.2s;
+    appearance: none;
+    -webkit-appearance: none;
+    padding: 0;
+
+    &:hover {
+      background: #E5E6EB;
+    }
+  }
+}
+
+// Inner container for centering content with max-width
+.uqa-inner {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 20px 16px 40px;
+  width: 100%;
+  box-sizing: border-box;
+
+  @media (min-width: 769px) {
+    padding: 24px 24px 48px;
+  }
+}

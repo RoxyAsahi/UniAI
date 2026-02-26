@@ -1,0 +1,15 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  cmd = "go build -o ./chatnio ."
+  bin = "chatnio"
+  full_bin = "chatnio"
+  delay = 1000 # ms
+  watch_dir = ["."]
+  watch_ext = ["go", "mod", "sum"]
+  exclude_dir = ["tmp", "vendor", "node_modules", "app", "blob-service"]
+  exclude_file = ["app", "blob-service"]
+
+[log]
+  time = true

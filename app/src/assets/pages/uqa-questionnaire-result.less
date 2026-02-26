@@ -1,0 +1,524 @@
+// ============================================================
+// UQA Result Page — app-shell-aware layout
+// ============================================================
+@import "./uqa-common.less";
+
+.uqa-result-page {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  background: linear-gradient(180deg, #F7F8FA 0%, #FFFFFF 100%);
+  scrollbar-width: thin;
+
+  // 结果内容区域
+  .result-content {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 20px 16px 100px;
+    width: 100%;
+    box-sizing: border-box;
+
+    @media (min-width: 769px) {
+      padding: 24px 24px 100px;
+    }
+  }
+
+  // 报告标题卡片
+  .report-header-card {
+    background: #FFFFFF;
+    margin: 0 0 20px;
+    border-radius: 20px;
+    padding: 24px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+    position: relative;
+    overflow: hidden;
+
+    &::before {
+      content: '';
+      position: absolute;
+      top: 0; right: 0;
+      width: 120px; height: 120px;
+      background: linear-gradient(135deg, rgba(0, 196, 118, 0.1) 0%, rgba(0, 196, 118, 0) 100%);
+      border-radius: 0 0 0 100%;
+      pointer-events: none;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 20px;
+
+      .header-info {
+        .card-title {
+          font-size: 18px;
+          font-weight: 700;
+          color: #1D2129;
+          margin: 0 0 8px 0;
+          line-height: 1.4;
+        }
+        .card-subtitle {
+          font-size: 13px;
+          color: #4E5969;
+          margin: 0;
+        }
+      }
+
+      .percentage-ring {
+        display: flex;
+        align-items: baseline;
+        color: #00C476;
+        flex-shrink: 0;
+
+        .num {
+          font-size: 32px;
+          font-weight: 800;
+          line-height: 1;
+          font-family: "DIN Alternate", "Roboto", sans-serif;
+        }
+        .unit {
+          font-size: 14px;
+          font-weight: 600;
+          margin-left: 2px;
+        }
+      }
+    }
+
+    .card-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 16px;
+      border-top: 1px solid #F7F8FA;
+
+      .report-date,
+      .report-score {
+        display: flex;
+        align-items: baseline;
+        gap: 4px;
+        font-size: 13px;
+        color: #86909C;
+
+        .date-value,
+        .score-value {
+          font-size: 14px;
+          font-weight: 600;
+          color: #1D2129;
+          font-family: "DIN Alternate", sans-serif;
+        }
+      }
+    }
+  }
+
+  // 总体评估卡片
+  .overall-card {
+    background: #FFFFFF;
+    border-radius: 20px;
+    padding: 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+
+    .card-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #1D2129;
+      margin: 0 0 20px 0;
+    }
+
+    .overall-score {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+
+      .score-circle {
+        position: relative;
+        width: 110px;
+        height: 110px;
+        flex-shrink: 0;
+
+        .score-svg { width: 100%; height: 100%; }
+
+        .score-text {
+          position: absolute;
+          top: 50%; left: 50%;
+          transform: translate(-50%, -50%);
+          text-align: center;
+
+          .score-number {
+            display: block;
+            font-size: 32px;
+            font-weight: 700;
+            color: #00C476;
+            line-height: 1;
+          }
+          .score-unit {
+            display: block;
+            font-size: 13px;
+            color: #4E5969;
+            margin-top: 4px;
+          }
+        }
+      }
+
+      .score-details {
+        flex: 1;
+        min-width: 0;
+
+        .score-label {
+          font-size: 14px;
+          color: #4E5969;
+          margin: 0 0 4px 0;
+        }
+        .score-value {
+          font-size: 22px;
+          font-weight: 600;
+          color: #1D2129;
+          margin: 0 0 12px 0;
+        }
+
+        .zone-summary {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+
+          .zone-tag {
+            padding: 4px 10px;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: 500;
+
+            &.advantage { background: rgba(0, 196, 118, 0.1); color: #00C476; }
+            &.develop   { background: rgba(61, 92, 255, 0.1);  color: #3D5CFF; }
+            &.warning   { background: rgba(255, 143, 31, 0.1); color: #FF8F1F; }
+            &.risk      { background: rgba(255, 71, 87, 0.1);  color: #FF4757; }
+          }
+        }
+      }
+    }
+  }
+
+  // 雷达图卡片
+  .radar-card {
+    background: #FFFFFF;
+    border-radius: 20px;
+    padding: 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+
+    .card-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #1D2129;
+      margin: 0 0 16px 0;
+      text-align: center;
+    }
+
+    .radar-container {
+      display: flex;
+      justify-content: center;
+      padding: 10px 0;
+
+      svg {
+        max-width: 100%;
+        height: auto;
+      }
+    }
+  }
+
+  // 维度详细分析
+  .dimensions-section {
+    margin-bottom: 20px;
+
+    .section-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #1D2129;
+      margin: 0 0 16px 0;
+    }
+
+    .dimensions-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+  }
+
+  // 综合建议
+  .suggestions-section {
+    margin-bottom: 20px;
+
+    .section-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #1D2129;
+      margin: 0 0 16px 0;
+    }
+
+    .suggestions-card {
+      background: #FFFFFF;
+      border-radius: 20px;
+      padding: 24px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+
+      .suggestion-line {
+        font-size: 14px;
+        color: #4E5969;
+        line-height: 1.7;
+        margin: 0 0 8px 0;
+        &:last-child { margin-bottom: 0; }
+      }
+    }
+  }
+
+  // 报告说明
+  .report-footer {
+    text-align: center;
+    padding: 24px;
+    background: #F7F8FA;
+    border-radius: 20px;
+    margin-bottom: 20px;
+
+    .footer-text {
+      font-size: 14px;
+      color: #4E5969;
+      line-height: 1.6;
+      margin: 0 0 12px 0;
+    }
+    .footer-org {
+      font-size: 13px;
+      color: #86909C;
+      margin: 0;
+    }
+  }
+
+  // 底部操作按钮 — sticky within scroll container
+  .result-actions {
+    display: flex;
+    gap: 12px;
+    padding: 12px 16px;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(8px);
+    border-top: 1px solid #F2F3F5;
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+    max-width: 720px;
+    margin: 0 auto;
+    width: 100%;
+    box-sizing: border-box;
+
+    .action-btn {
+      flex: 1;
+      height: 44px;
+      border: none;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+
+      &.secondary {
+        background: #F2F3F5;
+        color: #1D2129;
+        &:hover { background: #E5E6EB; }
+      }
+
+      &.primary {
+        background: linear-gradient(135deg, #00C476 0%, #00A868 100%);
+        color: #FFFFFF;
+        &:hover {
+          box-shadow: 0 4px 12px rgba(0, 196, 118, 0.3);
+          transform: translateY(-1px);
+        }
+      }
+
+      &:active { transform: scale(0.98); }
+    }
+  }
+
+  // 加载/错误状态
+  .loading-container,
+  .error-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    gap: 16px;
+    color: #4E5969;
+    padding: 40px 20px;
+
+    button {
+      padding: 10px 24px;
+      background: linear-gradient(135deg, #00C476 0%, #00A868 100%);
+      color: #FFFFFF;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+  }
+}
+
+// 维度卡片样式
+.dimension-card {
+  background: #FFFFFF;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s;
+  border-left: 4px solid transparent;
+
+  &:hover { box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08); }
+
+  .dimension-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+
+    .dimension-name { font-size: 15px; font-weight: 600; color: #1D2129; }
+    .dimension-zone-badge {
+      font-size: 11px; font-weight: 500; color: #fff;
+      padding: 3px 10px; border-radius: 10px;
+    }
+  }
+
+  .dimension-score-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 8px;
+
+    .dimension-score {
+      font-size: 20px; font-weight: 700; color: #1D2129;
+      .dimension-max { font-size: 13px; font-weight: 400; color: #86909C; }
+    }
+    .dimension-percent { font-size: 13px; color: #4E5969; }
+  }
+
+  .dimension-progress {
+    margin-bottom: 10px;
+    .progress-bar-bg {
+      width: 100%; height: 8px;
+      background: #F2F3F5; border-radius: 4px; overflow: hidden;
+      .progress-bar-fill {
+        height: 100%; border-radius: 4px; transition: width 0.4s ease;
+      }
+    }
+  }
+
+  .dimension-interpretation {
+    font-size: 13px; color: #4E5969; line-height: 1.6; margin: 0;
+  }
+}
+
+// ActionSheet 样式
+.action-sheet-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+
+  .action-sheet {
+    width: 100%;
+    max-width: 720px;
+    background: #fff;
+    border-radius: 16px 16px 0 0;
+    padding: 8px 0 24px;
+    padding-bottom: calc(24px + env(safe-area-inset-bottom));
+
+    .action-sheet-title {
+      text-align: center;
+      font-size: 13px;
+      color: #86909C;
+      padding: 12px 16px 8px;
+      border-bottom: 1px solid #F7F8FA;
+    }
+
+    .action-sheet-item {
+      display: block;
+      width: 100%;
+      padding: 16px;
+      background: none;
+      border: none;
+      font-size: 16px;
+      color: #1D2129;
+      cursor: pointer;
+      text-align: center;
+      border-bottom: 1px solid #F7F8FA;
+      font-family: inherit;
+
+      &.danger { color: #FF4757; }
+      &:hover { background: #F7F8FA; }
+    }
+
+    .action-sheet-cancel {
+      display: block;
+      width: calc(100% - 32px);
+      margin: 8px 16px 0;
+      padding: 14px;
+      background: #F2F3F5;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 500;
+      color: #1D2129;
+      cursor: pointer;
+      font-family: inherit;
+
+      &:hover { background: #E5E6EB; }
+    }
+  }
+}
+
+// Mobile responsive
+@media (max-width: 480px) {
+  .uqa-result-page {
+    .result-content { padding: 12px 12px 90px; }
+
+    .overall-card .overall-score {
+      flex-direction: column;
+      gap: 16px;
+      text-align: center;
+
+      .score-details .zone-summary { justify-content: center; }
+    }
+
+    .report-header-card { padding: 16px; }
+    .dimension-card { padding: 16px; }
+  }
+}
+
+// Print styles
+@media print {
+  .uqa-result-page {
+    .uqa-page-header,
+    .result-actions { display: none; }
+
+    .result-content {
+      max-width: 100%;
+      padding: 0;
+    }
+
+    .dimension-card { page-break-inside: avoid; }
+  }
+}
+
+// 入场动画
+.animate-enter {
+  opacity: 0;
+  transform: translateY(20px);
+  animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-delay: var(--delay, 0ms);
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}

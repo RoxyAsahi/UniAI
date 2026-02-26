@@ -1,0 +1,135 @@
+.uqa-landing-page {
+  background-color: #f7f8fa;
+  min-height: 100vh;
+  padding-bottom: 20px;
+  padding-top: 80px; // 为悬浮按钮留出空间
+
+  // 悬浮返回按钮
+  .floating-back-btn {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #FFFFFF;
+    border: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    color: #1D2129;
+    cursor: pointer;
+    transition: all 0.2s;
+    padding-top: env(safe-area-inset-top);
+
+    &:hover {
+      background: #F2F3F5;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    &:active {
+      transform: scale(0.95);
+    }
+  }
+
+  .welcome-card {
+    margin: 0 16px 20px;
+    padding: 24px;
+    border-radius: 20px;
+    background: linear-gradient(135deg, #4A90E2 0%, #50E3C2 100%);
+    color: white;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+
+    .welcome-title {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .welcome-desc {
+      font-size: 14px;
+      opacity: 0.9;
+      margin-bottom: 16px;
+      max-width: 80%;
+    }
+    .start-btn {
+      display: inline-flex;
+      align-items: center;
+      padding: 10px 20px;
+      border-radius: 999px;
+      background-color: rgba(255, 255, 255, 0.9);
+      color: #4A90E2;
+      font-weight: 600;
+      transition: all 0.2s ease;
+      &:hover { transform: scale(1.05); }
+    }
+  }
+
+  .history-section {
+    margin: 0 16px;
+    .section-header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 12px;
+      padding: 0 8px;
+    }
+    .section-title {
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .loading-state, .empty-state {
+      text-align: center;
+      padding: 40px;
+      color: #999;
+      background-color: #fff;
+      border-radius: 20px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+    }
+    .history-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .history-card {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px;
+      background-color: #fff;
+      border-radius: 20px;
+      cursor: pointer;
+      transition: box-shadow 0.2s ease;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+      &:hover { box-shadow: 0 6px 20px rgba(0,0,0,0.08); }
+      .history-info {
+        .history-date {
+          font-size: 14px;
+          color: #666;
+          display: flex;
+          align-items: center;
+          margin-bottom: 4px;
+        }
+        .history-name {
+          font-size: 16px;
+          font-weight: 500;
+        }
+      }
+      .history-score {
+        display: flex;
+        align-items: baseline;
+        .score-value {
+          font-size: 24px;
+          font-weight: 700;
+          color: #4A90E2;
+        }
+        .score-label {
+          font-size: 14px;
+          margin-left: 2px;
+        }
+      }
+    }
+  }
+}

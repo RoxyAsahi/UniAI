@@ -1,0 +1,617 @@
+.uqa-questionnaire-page {
+  min-height: 100vh;
+  background: linear-gradient(180deg, #F7F8FA 0%, #FFFFFF 100%);
+  padding-bottom: 80px;
+  padding-top: 80px; // 为悬浮按钮留出空间
+
+  // 悬浮返回按钮
+  .floating-back-btn {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #FFFFFF;
+    border: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    color: #1D2129;
+    cursor: pointer;
+    transition: all 0.2s;
+    padding-top: env(safe-area-inset-top); // 适配刘海屏
+
+    &:hover {
+      background: #F2F3F5;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    &:active {
+      transform: scale(0.95);
+    }
+  }
+
+  // 进度卡片
+  .progress-card {
+    background: #FFFFFF;
+    margin: 0 16px 20px;
+    border-radius: 20px;
+    padding: 24px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+    position: relative;
+    overflow: hidden;
+
+    // 装饰背景
+    &::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 120px;
+      height: 120px;
+      background: linear-gradient(135deg, rgba(0, 196, 118, 0.1) 0%, rgba(0, 196, 118, 0) 100%);
+      border-radius: 0 0 0 100%;
+      pointer-events: none;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 20px;
+
+      .header-info {
+        .card-title {
+          font-size: 20px;
+          font-weight: 700;
+          color: #1D2129;
+          margin: 0 0 8px 0;
+          line-height: 1.4;
+        }
+
+        .dimension-tag {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 4px 10px;
+          background: #F2F3F5;
+          border-radius: 6px;
+          font-size: 12px;
+          color: #4E5969;
+          font-weight: 500;
+
+          .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #00C476;
+          }
+        }
+      }
+
+      .percentage-ring {
+        display: flex;
+        align-items: baseline;
+        color: #00C476;
+        
+        .num {
+          font-size: 32px;
+          font-weight: 800;
+          line-height: 1;
+          font-family: "DIN Alternate", "Roboto", sans-serif;
+        }
+
+        .unit {
+          font-size: 14px;
+          font-weight: 600;
+          margin-left: 2px;
+        }
+      }
+    }
+
+    .progress-track {
+      height: 8px;
+      background: #F2F3F5;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 16px;
+
+      .progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #00C476 0%, #00A868 100%);
+        border-radius: 4px;
+        transition: width 0.3s ease-out;
+        position: relative;
+
+        &::after {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.3) 50%, rgba(255,255,255,0) 100%);
+          transform: skewX(-20deg) translateX(-150%);
+          animation: shimmer 2s infinite;
+        }
+      }
+    }
+
+    .card-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 16px;
+      border-top: 1px solid #F7F8FA;
+
+      .stat-item {
+        display: flex;
+        align-items: baseline;
+        gap: 4px;
+        font-size: 13px;
+        color: #86909C;
+
+        .value {
+          font-size: 16px;
+          font-weight: 600;
+          color: #1D2129;
+          font-family: "DIN Alternate", sans-serif;
+        }
+
+        .total {
+          font-size: 12px;
+          color: #86909C;
+        }
+      }
+    }
+  }
+
+  @keyframes shimmer {
+    0% { transform: skewX(-20deg) translateX(-150%); }
+    100% { transform: skewX(-20deg) translateX(250%); }
+  }
+
+  // 维度标题
+  .dimension-header {
+    padding: 24px;
+    background: #FFFFFF;
+    margin: 0 16px 20px;
+    border-radius: 20px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+
+    .dimension-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      background: linear-gradient(135deg, #00C476 0%, #00A868 100%);
+      color: #FFFFFF;
+      font-size: 12px;
+      font-weight: 500;
+      border-radius: 12px;
+      margin-bottom: 12px;
+    }
+
+    .dimension-title {
+      font-size: 20px;
+      font-weight: 600;
+      color: #1D2129;
+      margin: 0 0 8px 0;
+    }
+
+    .dimension-description {
+      font-size: 14px;
+      color: #4E5969;
+      line-height: 1.6;
+      margin: 0;
+    }
+  }
+
+  // 题目区域
+  .question-section {
+    padding: 0 16px;
+    margin-bottom: 20px;
+  }
+
+  // 导航按钮
+  .navigation-buttons {
+    display: flex;
+    gap: 12px;
+    padding: 0 16px;
+    margin-bottom: 40px;
+
+    .nav-btn {
+      flex: 1;
+      height: 48px;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+
+      &.prev-btn {
+        background: #F2F3F5;
+        color: #1D2129;
+
+        &:hover:not(:disabled) {
+          background: #E5E6EB;
+        }
+
+        &:disabled {
+          opacity: 0.4;
+          cursor: not-allowed;
+        }
+      }
+
+      &.next-btn {
+        background: linear-gradient(135deg, #00C476 0%, #00A868 100%);
+        color: #FFFFFF;
+
+        &:hover:not(:disabled) {
+          box-shadow: 0 4px 12px rgba(0, 196, 118, 0.3);
+          transform: translateY(-1px);
+        }
+
+        &:disabled {
+          opacity: 0.4;
+          cursor: not-allowed;
+        }
+      }
+
+      &:active:not(:disabled) {
+        transform: scale(0.98);
+      }
+    }
+  }
+
+  // 开放性问题部分
+  .open-ended-section {
+    margin-top: 60px;
+    padding: 0 16px 40px;
+
+    .section-divider {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 24px;
+
+      .divider-line {
+        flex: 1;
+        height: 1px;
+        background: #E5E6EB;
+      }
+
+      .divider-text {
+        font-size: 16px;
+        font-weight: 600;
+        color: #1D2129;
+        white-space: nowrap;
+      }
+    }
+
+    .open-ended-intro {
+      padding: 20px;
+      background: #F7F8FA;
+      border-radius: 20px;
+      margin-bottom: 20px;
+
+      p {
+        margin: 0;
+        font-size: 14px;
+        color: #4E5969;
+        line-height: 1.6;
+      }
+    }
+
+    .open-ended-questions {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .open-question-card {
+      background: #FFFFFF;
+      border-radius: 20px;
+      padding: 24px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+
+      .question-label {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        margin-bottom: 12px;
+        font-size: 15px;
+        font-weight: 500;
+        color: #1D2129;
+        line-height: 1.6;
+
+        .question-number {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 24px;
+          height: 24px;
+          background: linear-gradient(135deg, #00C476 0%, #00A868 100%);
+          color: #FFFFFF;
+          border-radius: 50%;
+          font-size: 12px;
+          font-weight: 600;
+          flex-shrink: 0;
+        }
+      }
+
+      .question-textarea {
+        width: 100%;
+        min-height: 100px;
+        padding: 12px;
+        border: 1px solid #E5E6EB;
+        border-radius: 8px;
+        font-size: 14px;
+        color: #1D2129;
+        line-height: 1.6;
+        resize: vertical;
+        transition: all 0.2s;
+        font-family: inherit;
+
+        &:focus {
+          outline: none;
+          border-color: #00C476;
+          box-shadow: 0 0 0 3px rgba(0, 196, 118, 0.1);
+        }
+
+        &::placeholder {
+          color: #C9CDD4;
+        }
+      }
+    }
+
+    .submit-section {
+      margin-top: 32px;
+      text-align: center;
+
+      .submit-btn {
+        width: 100%;
+        max-width: 400px;
+        height: 52px;
+        background: linear-gradient(135deg, #00C476 0%, #00A868 100%);
+        color: #FFFFFF;
+        border: none;
+        border-radius: 12px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+
+        &:hover:not(:disabled) {
+          box-shadow: 0 6px 16px rgba(0, 196, 118, 0.3);
+          transform: translateY(-2px);
+        }
+
+        &:active:not(:disabled) {
+          transform: translateY(0);
+        }
+
+        &:disabled {
+          opacity: 0.4;
+          cursor: not-allowed;
+        }
+      }
+
+      .submit-hint {
+        margin-top: 12px;
+        font-size: 13px;
+        color: #F53F3F;
+      }
+    }
+  }
+}
+
+// 题目卡片样式
+.uqa-question-card {
+  background: #FFFFFF;
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+
+  .question-text {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    font-size: 16px;
+    line-height: 1.6;
+    color: #1D2129;
+
+    .question-number {
+      font-weight: 600;
+      color: #00C476;
+      flex-shrink: 0;
+    }
+
+    .question-content {
+      flex: 1;
+    }
+  }
+
+  .options {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+
+    .option {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px;
+      background: #F7F8FA;
+      border: 2px solid transparent;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: left;
+      width: 100%;
+
+      &:hover {
+        background: #F2F3F5;
+        border-color: #E5E6EB;
+      }
+
+      &.selected {
+        background: rgba(0, 196, 118, 0.08);
+        border-color: #00C476;
+
+        .radio-circle {
+          border-color: #00C476;
+
+          .radio-dot {
+            opacity: 1;
+            transform: scale(1);
+          }
+        }
+
+        .option-label {
+          color: #00C476;
+          font-weight: 500;
+        }
+      }
+
+      .radio-circle {
+        position: relative;
+        width: 20px;
+        height: 20px;
+        border: 2px solid #C9CDD4;
+        border-radius: 50%;
+        flex-shrink: 0;
+        transition: all 0.2s;
+
+        .radio-dot {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%) scale(0);
+          width: 10px;
+          height: 10px;
+          background: #00C476;
+          border-radius: 50%;
+          opacity: 0;
+          transition: all 0.2s;
+        }
+      }
+
+      .option-label {
+        flex: 1;
+        font-size: 14px;
+        color: #4E5969;
+        line-height: 1.5;
+        transition: all 0.2s;
+      }
+    }
+  }
+}
+
+// 响应式设计
+@media (max-width: 768px) {
+  .uqa-questionnaire-page {
+    .dimension-header {
+      margin: 0 12px 12px;
+      padding: 16px;
+
+      .dimension-title {
+        font-size: 18px;
+      }
+    }
+
+    .question-section {
+      padding: 0 12px;
+    }
+
+    .navigation-buttons {
+      padding: 0 12px;
+    }
+
+    .open-ended-section {
+      padding: 0 12px 40px;
+    }
+  }
+
+  .uqa-question-card {
+    padding: 20px;
+
+    .question-text {
+      font-size: 15px;
+    }
+
+    .options .option {
+      padding: 14px;
+    }
+  }
+}
+// 题目切换动画
+.question-section {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  
+  &.slide-next-enter {
+    animation: slideInRight 0.3s forwards;
+  }
+  
+  &.slide-next-exit {
+    animation: slideOutLeft 0.3s forwards;
+  }
+  
+  &.slide-prev-enter {
+    animation: slideInLeft 0.3s forwards;
+  }
+  
+  &.slide-prev-exit {
+    animation: slideOutRight 0.3s forwards;
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideOutLeft {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideOutRight {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+}
