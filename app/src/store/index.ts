@@ -13,6 +13,8 @@ import settingsReducer from "./settings";
 import recordReducer from "./record";
 import avatarReducer from "./avatar";
 import translateReducer from "./translate"; // <-- 引入新的 translate reducer
+import timelineReducer from "./timeline";
+import folderReducer from "./folder";
 
 export const store = configureStore({
   reducer: {
@@ -30,6 +32,8 @@ export const store = configureStore({
     record: recordReducer,
     avatar: avatarReducer,
     translate: translateReducer, // <-- 注册新的 translate state
+    timeline: timelineReducer,
+    folder: folderReducer,
   },
 });
 

@@ -1,15 +1,18 @@
+//go:build ignore
+
 package main
 
 import (
 	"fmt"
-	"github.com/spf13/viper"
 	"strings"
+
+	"github.com/spf13/viper"
 )
 
 type MarketModel struct {
-	Id          string   `mapstructure:"id"`
-	Name        string   `mapstructure:"name"`
-	Description string   `mapstructure:"description"`
+	Id          string `mapstructure:"id"`
+	Name        string `mapstructure:"name"`
+	Description string `mapstructure:"description"`
 }
 type MarketModelList []MarketModel
 

@@ -73,6 +73,25 @@
     "add-bookmark": "Model added to menu bar",
     "show-1m-pricing": "1M tokens"
   },
+  "folder": {
+    "move-to": "Move to folder",
+    "drag-here": "Drag conversations here",
+    "new-folder": "New folder",
+    "section-title": "Folders",
+    "save": "Save",
+    "cancel": "Cancel",
+    "create-success": "Folder created",
+    "create-failed": "Failed to create folder",
+    "rename-success": "Folder renamed",
+    "rename-failed": "Failed to rename folder",
+    "delete-success": "Folder deleted",
+    "delete-failed": "Failed to delete folder",
+    "move-out": "Remove from folder"
+  },
+  "sidebar": {
+    "groups": "Groups",
+    "conversations": "Conversations"
+  },
   "conversation": {
     "title": "Conversation",
     "empty": "Empty",
@@ -653,6 +672,24 @@
       "titleTip": "Site name to display in the site title. Leave blank for default.",
       "logo": "Site Logo",
       "logoTip": "Link to the site logo to display in the site title, leave blank for default (e.g. {{logo}})",
+      "logoText": {
+        "brandText": "Brand Text",
+        "edit": "Edit",
+        "enabled": "Show Brand Text",
+        "text": "Brand Text Content",
+        "font": "Font",
+        "weight": "Font Weight",
+        "weightLight": "Light (300)",
+        "weightRegular": "Regular (400)",
+        "weightMedium": "Medium (500)",
+        "weightSemiBold": "SemiBold (600)",
+        "weightBold": "Bold (700)",
+        "size": "Font Size (px)",
+        "letterSpacing": "Letter Spacing (px)",
+        "verticalOffset": "Vertical Offset (px)",
+        "margin": "Logo Spacing (px)",
+        "previewEmpty": "Brand text is hidden"
+      },
       "backendPlaceholder": "Backend callback domain name, empty by default, required for accepting callbacks",
       "docs": "Document Link",
       "docsTip": "Document link, leave blank for default https://coai.dev",

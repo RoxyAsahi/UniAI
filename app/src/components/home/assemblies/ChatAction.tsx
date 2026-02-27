@@ -4,7 +4,7 @@ import {
   useConversationActions,
   useMessages,
 } from "@/store/chat.ts";
-import { Globe, Info, MessageSquarePlus, Wifi, WifiOff } from "lucide-react";
+import { Globe, Info, List, MessageSquarePlus, Wifi, WifiOff } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { useTranslation } from "react-i18next";
 import React from "react";
@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/popover.tsx";
 import { Switch } from "@/components/ui/switch.tsx";
 import { Label } from "@/components/ui/label.tsx";
+import { toggleTimeline, useTimelineVisible } from "@/store/timeline";
 
 type ChatActionProps = {
   style?: React.CSSProperties;
@@ -167,6 +168,21 @@ export function NewConversationAction() {
       onClick={async () => messages.length > 0 && (await toggle(-1))}
     >
       <MessageSquarePlus className={`h-4 w-4`} />
+    </ChatAction>
+  );
+}
+
+export function TimelineAction() {
+  const dispatch = useDispatch();
+  const visible = useTimelineVisible();
+
+  return (
+    <ChatAction
+      text="Timeline"
+      active={visible}
+      onClick={() => dispatch(toggleTimeline())}
+    >
+      <List className={`h-4 w-4`} />
     </ChatAction>
   );
 }

@@ -20,6 +20,7 @@ import { alignSelector } from "@/store/settings.ts";
 import { FileArray } from "@/api/file.ts";
 import {
   NewConversationAction,
+  TimelineAction,
   WebAction,
 } from "@/components/home/assemblies/ChatAction.tsx";
 import ChatSpace from "@/components/home/ChatSpace.tsx";
@@ -199,6 +200,14 @@ function ChatWrapper() {
                 transition={{ duration: 0.3, delay: 0.3 }}
               >
                 <VoiceAction />
+              </motion.div>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ duration: 0.3, delay: 0.4 }}
+              >
+                <TimelineAction />
               </motion.div>
               <motion.div
                 initial={{ opacity: 0, scale: 0.8 }}

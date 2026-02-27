@@ -30,6 +30,7 @@ import {
 } from "@/api/history.ts";
 import { CustomMask, Mask } from "@/masks/types.ts";
 import { listMasks } from "@/api/mask.ts";
+import { moveConversation } from "@/api/folder.ts";
 import { useDispatch, useSelector } from "react-redux";
 import { useMemo } from "react";
 import { ConnectionStack, StreamMessage } from "@/api/connection.ts";
@@ -67,6 +68,7 @@ type initialStateType = {
   model_list: string[];
   market: boolean;
   mask_item: Mask | null;
+  mask_folder_id: number | null;
   custom_masks: CustomMask[];
   support_models: Model[];
 };
@@ -156,6 +158,7 @@ const chatSlice = createSlice({
     ),
     market: false,
     mask_item: null,
+    mask_folder_id: null,
     custom_masks: [],
     support_models: offline,
   } as initialStateType,
@@ -306,10 +309,19 @@ const chatSlice = createSlice({
         const stored = avatarStore[item.id];
         const avatar = existing?.avatar || stored?.avatar;
         const name = existing?.avatar ? existing.name : (stored?.avatar ? stored.name : item.name);
+        // Preserve folder_id correctly:
+        // - Server returns the field (number) → use server value (authoritative)
+        // - Server omits the field (undefined, via omitempty) → fall back to local
+        //   optimistic value set by updateConversationFolder after a drag/move
+        // Do NOT use ?? here: ?? treats null the same as undefined, which would
+        // incorrectly restore a folder_id after the user moves a conversation out.
+        const folder_id = item.folder_id !== undefined ? item.folder_id : existing?.folder_id;
         return {
           ...item,
           ...(avatar && { avatar, name }),
           ...(existing?.clientKey && { clientKey: existing.clientKey }),
+          // Only spread folder_id when it has a meaningful value (not null/undefined)
+          ...(folder_id != null ? { folder_id } : {}),
         };
       });
       state.history = preflight ? [preflight, ...merged] : merged;
@@ -318,18 +330,18 @@ const chatSlice = createSlice({
       state.conversations[-1] = { ...defaultConversation };
     },
     preflightHistory: (state, action) => {
-      const { name, avatar } = action.payload as { name: string; avatar?: string };
+      const { name, avatar, folder_id } = action.payload as { name: string; avatar?: string; folder_id?: number };
 
       // replace existing { id: -1 } entry or prepend a new one
       const existingIdx = state.history.findIndex((item) => item.id === -1);
       if (existingIdx !== -1) {
         // reuse the existing clientKey so the React key stays stable
         const existingKey = state.history[existingIdx].clientKey;
-        state.history[existingIdx] = { id: -1, name, message: [], avatar, clientKey: existingKey };
+        state.history[existingIdx] = { id: -1, name, message: [], avatar, folder_id, clientKey: existingKey };
       } else {
         // assign a fresh stable key for this preflight entry
         const clientKey = `preflight-${Date.now()}`;
-        state.history = [{ id: -1, name, message: [], avatar, clientKey }, ...state.history];
+        state.history = [{ id: -1, name, message: [], avatar, folder_id, clientKey }, ...state.history];
       }
     },
     removePreflight: (state) => {
@@ -428,6 +440,13 @@ const chatSlice = createSlice({
     },
     clearMaskItem: (state) => {
       state.mask_item = null;
+      state.mask_folder_id = null;
+    },
+    setMaskFolderId: (state, action) => {
+      state.mask_folder_id = action.payload as number | null;
+    },
+    clearMaskFolderId: (state) => {
+      state.mask_folder_id = null;
     },
     setCustomMasks: (state, action) => {
       state.custom_masks = action.payload as CustomMask[];
@@ -445,7 +464,31 @@ const chatSlice = createSlice({
 
       setOfflineModels(models);
     },
-
+    updateConversationFolder: (state, action) => {
+      const { id, folderId } = action.payload as { id: number; folderId: number | null };
+      const entry = state.history.find((item) => item.id === id);
+      if (entry) entry.folder_id = folderId;
+    },
+    reorderHistory: (state, action) => {
+      // ID-based reorder: move movedId to just before insertBeforeId.
+      // insertBeforeId === null means "move to end of the list".
+      const { movedId, insertBeforeId } = action.payload as {
+        movedId: number;
+        insertBeforeId: number | null;
+      };
+      const preflight = state.history.find((item) => item.id === -1);
+      const realItems = state.history.filter((item) => item.id !== -1);
+      const movedIdx = realItems.findIndex((item) => item.id === movedId);
+      if (movedIdx === -1) return;
+      const [moved] = realItems.splice(movedIdx, 1);
+      if (insertBeforeId === null) {
+        realItems.push(moved);
+      } else {
+        const beforeIdx = realItems.findIndex((item) => item.id === insertBeforeId);
+        realItems.splice(beforeIdx === -1 ? realItems.length : beforeIdx, 0, moved);
+      }
+      state.history = preflight ? [preflight, ...realItems] : realItems;
+    },
   },
 });
 
@@ -464,6 +507,8 @@ export const {
   setSupportModels,
   setMaskItem,
   clearMaskItem,
+  setMaskFolderId,
+  clearMaskFolderId,
   fillMaskItem,
   createMessage,
   updateMessage,
@@ -479,6 +524,8 @@ export const {
   resetNewConversation,
   removePreflight,
   upgradePreflight,
+  updateConversationFolder,
+  reorderHistory,
 } = chatSlice.actions;
 export const selectHistory = (state: RootState): ConversationInstance[] =>
   state.chat.history;
@@ -496,6 +543,8 @@ export const selectSupportModels = (state: RootState): Model[] =>
   state.chat.support_models;
 export const selectMaskItem = (state: RootState): Mask | null =>
   state.chat.mask_item;
+export const selectMaskFolderId = (state: RootState): number | null =>
+  state.chat.mask_folder_id;
 
 export function useConversation(): ConversationSerialized | undefined {
   const conversations = useSelector(selectConversations);
@@ -556,10 +605,16 @@ export function useConversationActions() {
 
       return resp;
     },
-    mask: (mask: Mask) => {
+    mask: (mask: Mask, folderId?: number) => {
       dispatch(setMaskItem(mask));
       dispatch(resetNewConversation());
       dispatch(setCurrent(-1));
+      // Store the folder ID so send() and receive() can auto-assign the conversation
+      if (folderId != null) {
+        dispatch(setMaskFolderId(folderId));
+      } else {
+        dispatch(clearMaskFolderId());
+      }
       // Do NOT add a preflight history entry here.
       // The entry is deferred until the user actually sends the first message,
       // which eliminates the flicker caused by the preflight → upgrade → rename cycle.
@@ -578,6 +633,7 @@ export function useMessageActions() {
   const current = useSelector(selectCurrent);
   const conversations = useSelector(selectConversations);
   const mask = useSelector(selectMaskItem);
+  const maskFolderId = useSelector(selectMaskFolderId);
   const chatHistory = useSelector(selectHistory);
 
   const model = useSelector(selectModel);
@@ -600,7 +656,11 @@ export function useMessageActions() {
         const hasPreflight = chatHistory.some((item) => item.id === -1);
         if (!hasPreflight) {
           if (mask) {
-            dispatch(preflightHistory({ name: mask.name, avatar: mask.avatar }));
+            dispatch(preflightHistory({
+              name: mask.name,
+              avatar: mask.avatar,
+              folder_id: maskFolderId ?? undefined,
+            }));
           } else {
             dispatch(preflightHistory({ name: message }));
           }
@@ -699,9 +759,15 @@ export function useMessageActions() {
         if (maskAvatar) {
           // Preset conversation: atomically promote the preflight entry to the
           // real id (keeps emoji + preset name, zero flash).
-          // Then sync the rest of the list in the background; setHistory will
-          // preserve the avatar/name for this entry via the merge logic.
           dispatch(upgradePreflight(target));
+
+          // Auto-assign to the preset's folder if one was set
+          if (maskFolderId != null) {
+            moveConversation(target, maskFolderId); // fire-and-forget
+            dispatch(updateConversationFolder({ id: target, folderId: maskFolderId }));
+            dispatch(clearMaskFolderId());
+          }
+
           refresh(); // fire-and-forget — no await, no flash
         } else {
           // Normal conversation: wait for the server list, then clean up.
@@ -762,7 +828,8 @@ export function useWorking(): boolean {
 
 export const updateMasks = async (dispatch: AppDispatch) => {
   const resp = await listMasks();
-  resp.data && resp.data.length > 0 && dispatch(setCustomMasks(resp.data));
+  // Always sync the store — even when the list is empty (e.g. user deleted all masks)
+  if (resp.status) dispatch(setCustomMasks(resp.data || []));
 
   return resp;
 };

@@ -9,6 +9,8 @@ import {
 import MessageSegment from "@/components/Message.tsx";
 import { ScrollArea } from "@/components/ui/scroll-area.tsx";
 import { AnimatePresence, motion } from "framer-motion";
+import { TimelinePanel } from "@/components/timeline/TimelinePanel";
+import { useTimelineVisible } from "@/store/timeline";
 
 type ChatInterfaceProps = {
   scrollable: boolean;
@@ -33,6 +35,7 @@ function ChatInterface({ scrollable, setTarget }: ChatInterfaceProps) {
   const process = listenMessageEvent();
   const current: number = useSelector(selectCurrent);
   const [selected, setSelected] = React.useState(-1);
+  const timelineVisible = useTimelineVisible();
 
   const renderableMessages = React.useMemo(() => {
     return messages.filter(shouldRenderMessage);
@@ -49,46 +52,54 @@ function ChatInterface({ scrollable, setTarget }: ChatInterfaceProps) {
   }, [ref, setTarget]);
 
   return (
-    <ScrollArea className="chat-content" ref={ref}>
-      <AnimatePresence>
-        <motion.div className="chat-messages-wrapper">
-          {renderableMessages.map((message) => {
-            const originalIndex = messages.findIndex(m => m === message);
-            
-            return (
-              <motion.div
-                key={`message-${originalIndex}`}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{
-                  type: "spring",
-                  stiffness: 500,
-                  damping: 30,
-                  mass: 1,
-                  delay:
-                    message.role === "assistant" || message.role === "system"
-                      ? 0.25
-                      : 0,
-                }}
-              >
-                <MessageSegment
-                  message={message}
-                  end={originalIndex === messages.length - 1}
-                  onEvent={(event: string, index?: number, message?: string) => {
-                    process({ id: current, event, index: index ?? originalIndex, message });
+    <>
+      <ScrollArea className="chat-content" ref={ref}>
+        <AnimatePresence>
+          <motion.div className="chat-messages-wrapper">
+            {renderableMessages.map((message) => {
+              const originalIndex = messages.findIndex(m => m === message);
+              
+              return (
+                <motion.div
+                  key={`message-${originalIndex}`}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{
+                    type: "spring",
+                    stiffness: 500,
+                    damping: 30,
+                    mass: 1,
+                    delay:
+                      message.role === "assistant" || message.role === "system"
+                        ? 0.25
+                        : 0,
                   }}
-                  index={originalIndex}
-                  selected={selected === originalIndex}
-                  onFocus={() => setSelected(originalIndex)}
-                  onFocusLeave={() => setSelected(-1)}
-                />
-              </motion.div>
-            );
-          })}
-        </motion.div>
-      </AnimatePresence>
-    </ScrollArea>
+                >
+                  <MessageSegment
+                    message={message}
+                    end={originalIndex === messages.length - 1}
+                    onEvent={(event: string, index?: number, message?: string) => {
+                      process({ id: current, event, index: index ?? originalIndex, message });
+                    }}
+                    index={originalIndex}
+                    selected={selected === originalIndex}
+                    onFocus={() => setSelected(originalIndex)}
+                    onFocusLeave={() => setSelected(-1)}
+                  />
+                </motion.div>
+              );
+            })}
+          </motion.div>
+        </AnimatePresence>
+      </ScrollArea>
+      {timelineVisible && current > 0 && (
+        <TimelinePanel
+          conversationId={current}
+          messages={renderableMessages}
+        />
+      )}
+    </>
   );
 }
 

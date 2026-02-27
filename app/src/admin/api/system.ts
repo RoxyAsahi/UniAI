@@ -13,6 +13,17 @@ export type whiteList = {
   white_list: string[];
 };
 
+export type LogoTextState = {
+  enabled: boolean;
+  text: string;
+  font: string;
+  weight: number;
+  size: number;
+  margin: number;
+  letter_spacing: number;
+  vertical_offset: number;
+};
+
 export type GeneralState = {
   title: string;
   logo: string;
@@ -23,6 +34,7 @@ export type GeneralState = {
   pwa_manifest: string;
   gravatar: string;
   debug_mode: boolean;
+  logo_text?: LogoTextState;
   realtime?: {
     ws?: {
       buffer_size?: number;
@@ -180,6 +192,16 @@ export const initialSystemState: SystemProps = {
     pwa_manifest: "",
     gravatar: "",
     debug_mode: false,
+    logo_text: {
+      enabled: true,
+      text: "UniAi",
+      font: "Comfortaa",
+      weight: 700,
+      size: 18,
+      margin: 8,
+      letter_spacing: 0,
+      vertical_offset: 0,
+    },
     realtime: {
       ws: {
         buffer_size: 24,
@@ -344,6 +366,25 @@ export async function getConfig(): Promise<SystemResponse> {
       ws.buffer_size = typeof ws.buffer_size === "number" && ws.buffer_size > 0 ? ws.buffer_size : 1;
       ws.aggregate = typeof ws.aggregate === "boolean" ? ws.aggregate : true;
       ws.aggregate_window_ms = typeof ws.aggregate_window_ms === "number" && ws.aggregate_window_ms > 0 ? ws.aggregate_window_ms : 20;
+
+      const lt = (data.data.general.logo_text = data.data.general.logo_text || {
+        enabled: true,
+        text: "UniAi",
+        font: "Comfortaa",
+        weight: 700,
+        size: 18,
+        margin: 8,
+        letter_spacing: 0,
+        vertical_offset: 0,
+      });
+      lt.enabled = typeof lt.enabled === "boolean" ? lt.enabled : true;
+      lt.text = lt.text || "UniAi";
+      lt.font = lt.font || "Comfortaa";
+      lt.weight = typeof lt.weight === "number" && lt.weight > 0 ? lt.weight : 700;
+      lt.size = typeof lt.size === "number" && lt.size > 0 ? lt.size : 18;
+      lt.margin = typeof lt.margin === "number" && lt.margin >= 0 ? lt.margin : 8;
+      lt.letter_spacing = typeof lt.letter_spacing === "number" ? lt.letter_spacing : 0;
+      lt.vertical_offset = typeof lt.vertical_offset === "number" ? lt.vertical_offset : 0;
 
       const at = (data.data.auto_title = data.data.auto_title || {
         enabled: false,

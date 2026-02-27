@@ -8,8 +8,13 @@ import {
   selectCurrent,
   selectHistory,
   selectMaskItem,
+  updateConversationFolder,
+  reorderHistory,
   useConversationActions,
 } from "@/store/chat.ts";
+import { DragDropContext, Droppable, Draggable, DropResult, DragUpdate } from "react-beautiful-dnd";
+import { moveConversation, reorderConversations } from "@/api/folder.ts";
+import { setDragOverFolder } from "@/store/folder";
 import React, { useMemo, useRef, useState } from "react";
 import { ConversationInstance } from "@/api/types.tsx";
 import { extractMessage, filterMessage } from "@/utils/processor.ts";
@@ -19,6 +24,7 @@ import { mobile, openWindow } from "@/utils/device.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { selectMenu, setMenu } from "@/store/menu.ts";
 import {
+  ChevronRight,
   Copy,
   Eraser,
   Paintbrush,
@@ -28,6 +34,8 @@ import {
   User,
 } from "lucide-react";
 import ConversationItem from "./ConversationItem.tsx";
+import { FolderTree, FolderTreeRef } from "@/components/folder/FolderTree";
+import { useFolders } from "@/store/folder";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -43,7 +51,7 @@ import { getSharedLink, shareConversation } from "@/api/sharing.ts";
 import { Input } from "@/components/ui/input.tsx";
 import { goAuth } from "@/utils/app.ts";
 import { cn } from "@/components/ui/lib/utils.ts";
-import { getNumberMemory } from "@/utils/memory.ts";
+import { getBooleanMemory, getNumberMemory, setBooleanMemory } from "@/utils/memory.ts";
 import { toast } from "sonner";
 import { AnimatePresence, motion } from "framer-motion";
 
@@ -63,6 +71,44 @@ type ConversationListProps = {
   operateConversation: Operation;
   setOperateConversation: (operation: Operation) => void;
 };
+
+
+function SidebarSectionHeader({
+  title,
+  expanded,
+  onToggle,
+  children,
+}: {
+  title: string;
+  expanded: boolean;
+  onToggle: () => void;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        "sidebar-section-header flex items-center justify-between px-3 py-1.5 cursor-pointer hover:bg-muted/50 transition-colors group select-none mt-1",
+      )}
+      onClick={onToggle}
+    >
+      <div className="flex items-center gap-1.5 overflow-hidden">
+        <ChevronRight
+          className={cn(
+            "h-3 w-3 text-muted-foreground/60 transition-transform duration-200",
+            expanded && "rotate-90",
+          )}
+        />
+        <span className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-widest truncate">
+          {title}
+        </span>
+      </div>
+      <div onClick={(e) => e.stopPropagation()} className="flex items-center">
+        {children}
+      </div>
+    </div>
+  );
+}
+
 
 function SidebarAction({
   search,
@@ -211,11 +257,14 @@ function SidebarConversationList({
   const { remove } = useConversationActions();
   const auth = useSelector(selectAuthenticated);
   const history: ConversationInstance[] = useSelector(selectHistory);
+  const folders = useFolders();
   const [shared, setShared] = useState<string>("");
   const current = useSelector(selectCurrent);
 
   const filteredHistory = useMemo(() => {
-    if (search.trim().length === 0) return history;
+    // Exclude conversations that belong to a folder — they're shown inside FolderTree
+    const noFolder = history.filter((c) => c.id > 0 && !c.folder_id);
+    if (search.trim().length === 0) return noFolder;
 
     const searchItems = search
       .trim()
@@ -223,7 +272,7 @@ function SidebarConversationList({
       .split(" ")
       .filter((item) => item.length > 0);
 
-    return history.filter((conversation) => {
+    return noFolder.filter((conversation) => {
       const name = conversation.name.toLowerCase();
       const id = conversation.id.toString();
       return searchItems.every(
@@ -263,37 +312,59 @@ function SidebarConversationList({
 
   return (
     <>
-      <div className={`conversation-list`}>
-        <AnimatePresence>
-          {filteredHistory.length ? (
-            filteredHistory.map((conversation, i) => (
-              <motion.div
-                key={conversation.clientKey ?? conversation.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.3, delay: i * 0.05 }}
-              >
-                <ConversationItem
-                  operate={setOperateConversation}
-                  conversation={conversation}
-                  current={current}
-                />
-              </motion.div>
-            ))
-          ) : (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5 }}
-              className={`empty text-center px-6`}
-            >
-              {auth
-                ? t("conversation.empty")
-                : t("conversation.empty-anonymous")}
-            </motion.div>
-          )}
-        </AnimatePresence>
+      <div className="flex-1 min-h-0 overflow-hidden">
+      <Droppable droppableId="conversation-list">
+        {(provided) => (
+          <div
+            className={`conversation-list`}
+            ref={provided.innerRef}
+            {...provided.droppableProps}
+          >
+            {filteredHistory.length ? (
+              filteredHistory.map((conversation, i) => (
+                <Draggable
+                  key={conversation.clientKey ?? String(conversation.id)}
+                  draggableId={String(conversation.id)}
+                  index={i}
+                >
+                  {(dragProvided, snapshot) => (
+                    <div
+                      ref={dragProvided.innerRef}
+                      {...dragProvided.draggableProps}
+                      {...dragProvided.dragHandleProps}
+                      style={{
+                        ...dragProvided.draggableProps.style,
+                        opacity: snapshot.isDragging ? 0.7 : 1,
+                        userSelect: "none",
+                        // Prevent framer-motion from fighting react-beautiful-dnd
+                        // transforms while the item is being dragged.
+                        transition: snapshot.isDragging
+                          ? "opacity 0.1s"
+                          : dragProvided.draggableProps.style?.transition,
+                        willChange: "transform",
+                      }}
+                    >
+                      <ConversationItem
+                        operate={setOperateConversation}
+                        conversation={conversation}
+                        current={current}
+                        folders={folders}
+                      />
+                    </div>
+                  )}
+                </Draggable>
+              ))
+            ) : (
+              <div className={`empty text-center px-6`}>
+                {auth
+                  ? t("conversation.empty")
+                  : t("conversation.empty-anonymous")}
+              </div>
+            )}
+            {provided.placeholder}
+          </div>
+        )}
+      </Droppable>
       </div>
       <AlertDialog
         open={
@@ -407,24 +478,172 @@ function SidebarConversationList({
 
 function SideBar() {
   const { t } = useTranslation();
+  const dispatch = useDispatch();
   const { refresh, toggle } = useConversationActions();
   const current = useSelector(selectCurrent);
   const open = useSelector(selectMenu);
   const auth = useSelector(selectAuthenticated);
+  const history: ConversationInstance[] = useSelector(selectHistory);
   const [search, setSearch] = useState<string>("");
   const [operateConversation, setOperateConversation] = useState<Operation>({
     target: null,
     type: "",
   });
+
+  const [groupsExpanded, setGroupsExpanded] = useState(getBooleanMemory("sidebar_groups_expanded", true));
+  const [historyExpanded, setHistoryExpanded] = useState(getBooleanMemory("sidebar_history_expanded", true));
+  const folderTreeRef = useRef<FolderTreeRef>(null);
+
+  const toggleGroups = () => {
+    const next = !groupsExpanded;
+    setGroupsExpanded(next);
+    setBooleanMemory("sidebar_groups_expanded", next);
+  };
+
+  const toggleHistory = () => {
+    const next = !historyExpanded;
+    setHistoryExpanded(next);
+    setBooleanMemory("sidebar_history_expanded", next);
+  };
+
   useEffectAsync(async () => {
     const resp = await refresh();
 
     const store = getNumberMemory("history_conversation", -1);
-    if (current === store) return; // no need to dispatch current
-    if (store === -1) return; // -1 is default, no need to dispatch
-    if (!resp.map((item) => item.id).includes(store)) return; // not in the list, no need to dispatch
+    if (current === store) return;
+    if (store === -1) return;
+    if (!resp.map((item) => item.id).includes(store)) return;
     await toggle(store);
   }, []);
+
+  const handleDragUpdate = (update: DragUpdate) => {
+    const { destination } = update;
+    if (destination?.droppableId.startsWith("folder-")) {
+      const folderId = parseInt(destination.droppableId.replace("folder-", ""));
+      dispatch(setDragOverFolder(folderId));
+    } else {
+      dispatch(setDragOverFolder(null));
+    }
+  };
+
+  const handleDragEnd = async (result: DropResult) => {
+    // Always clear the drag-over highlight when drag ends
+    dispatch(setDragOverFolder(null));
+
+    const { source, destination, draggableId } = result;
+    if (!destination) return;
+    if (
+      source.droppableId === destination.droppableId &&
+      source.index === destination.index
+    )
+      return;
+
+    const convId = parseInt(draggableId);
+    const srcIsFolder = source.droppableId.startsWith("folder-");
+    const dstIsFolder = destination.droppableId.startsWith("folder-");
+
+    if (dstIsFolder) {
+      const dstFolderId = parseInt(destination.droppableId.replace("folder-", ""));
+      const srcFolderId = srcIsFolder
+        ? parseInt(source.droppableId.replace("folder-", ""))
+        : null;
+
+      if (srcFolderId === dstFolderId) {
+        // Intra-folder reorder — client-side then persist
+        const folderConvs = history.filter(
+          (c) => c.id > 0 && c.folder_id === dstFolderId,
+        );
+        const insertBeforeConv =
+          destination.index > source.index
+            ? folderConvs[destination.index + 1]
+            : folderConvs[destination.index];
+
+        dispatch(
+          reorderHistory({
+            movedId: convId,
+            insertBeforeId: insertBeforeConv?.id ?? null,
+          }),
+        );
+
+        // Persistent reorder
+        const items = [...folderConvs];
+        const [moved] = items.splice(source.index, 1);
+        items.splice(destination.index, 0, moved);
+        const orders: Record<number, number> = {};
+        items.forEach((item, index) => {
+          orders[item.id] = index;
+        });
+        await reorderConversations(orders);
+      } else {
+        // Cross-folder move OR main-list → folder
+        const ok = await moveConversation(convId, dstFolderId);
+        if (ok) {
+          dispatch(updateConversationFolder({ id: convId, folderId: dstFolderId }));
+          
+          // Persistent reorder for the target folder: include the new item
+          const targetFolderConvs = history.filter(
+            (c) => c.id > 0 && c.folder_id === dstFolderId && c.id !== convId
+          );
+          const movedItem = history.find(c => c.id === convId);
+          if (movedItem) {
+            const items = [...targetFolderConvs];
+            items.splice(destination.index, 0, movedItem);
+            const orders: Record<number, number> = {};
+            items.forEach((item, index) => {
+              orders[item.id] = index;
+            });
+            await reorderConversations(orders);
+          }
+        }
+      }
+    } else if (destination.droppableId === "conversation-list") {
+      if (srcIsFolder) {
+        // Folder → main list: move out of folder
+        const ok = await moveConversation(convId, null);
+        if (ok) {
+          dispatch(updateConversationFolder({ id: convId, folderId: null }));
+          
+          // Persistent reorder for the main list: include the new item
+          const noFolderHistory = history.filter(
+            (c) => c.id > 0 && !c.folder_id && c.id !== convId
+          );
+          const movedItem = history.find(c => c.id === convId);
+          if (movedItem) {
+            const items = [...noFolderHistory];
+            items.splice(destination.index, 0, movedItem);
+            const orders: Record<number, number> = {};
+            items.forEach((item, index) => {
+              orders[item.id] = index;
+            });
+            await reorderConversations(orders);
+          }
+        }
+      } else {
+        // Main list → main list: reorder
+        const noFolderHistory = history.filter((c) => c.id > 0 && !c.folder_id);
+        const insertBeforeConv =
+          destination.index > source.index
+            ? noFolderHistory[destination.index + 1]
+            : noFolderHistory[destination.index];
+        dispatch(
+          reorderHistory({
+            movedId: convId,
+            insertBeforeId: insertBeforeConv?.id ?? null,
+          }),
+        );
+
+        // Persistent reorder
+        const items = [...noFolderHistory];
+        const [moved] = items.splice(source.index, 1);
+        items.splice(destination.index, 0, moved);
+        const orders: Record<number, number> = {};
+        items.forEach((item, index) => {
+          orders[item.id] = index;
+        });
+        await reorderConversations(orders);
+      }
+    }
+  };
 
   return (
     <div className={cn("sidebar", open && "open")}>
@@ -434,11 +653,72 @@ function SideBar() {
           setSearch={setSearch}
           setOperateConversation={setOperateConversation}
         />
-        <SidebarConversationList
-          search={search}
-          operateConversation={operateConversation}
-          setOperateConversation={setOperateConversation}
-        />
+        <DragDropContext onDragEnd={handleDragEnd} onDragUpdate={handleDragUpdate}>
+          {auth && (
+            <div className="sidebar-group-container flex flex-col min-h-0">
+              <SidebarSectionHeader
+                title={t("sidebar.groups")}
+                expanded={groupsExpanded}
+                onToggle={toggleGroups}
+              >
+                <button
+                  className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground/60 hover:text-foreground"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!groupsExpanded) toggleGroups();
+                    setTimeout(() => folderTreeRef.current?.create(), 0);
+                  }}
+                >
+                  <Plus className="h-3 w-3" />
+                </button>
+              </SidebarSectionHeader>
+              <AnimatePresence initial={false}>
+                {groupsExpanded && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    style={{ overflow: "hidden" }}
+                  >
+                    <FolderTree
+                      innerRef={folderTreeRef}
+                      conversations={history.filter((c) => c.id > 0)}
+                      currentConversation={current}
+                      onConversationClick={async (id) => await toggle(id)}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
+
+          <div className="sidebar-history-container flex flex-col flex-1 min-h-0">
+            <SidebarSectionHeader
+              title={t("sidebar.conversations")}
+              expanded={historyExpanded}
+              onToggle={toggleHistory}
+            />
+            <AnimatePresence initial={false}>
+              {historyExpanded && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  style={{ overflow: "hidden" }}
+                  className="flex-1 min-h-0"
+                >
+                  <SidebarConversationList
+                    search={search}
+                    operateConversation={operateConversation}
+                    setOperateConversation={setOperateConversation}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </DragDropContext>
         {!auth && (
           <Button
             className={`login-action min-h-10 h-max`}

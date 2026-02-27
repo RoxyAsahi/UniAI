@@ -40,6 +40,7 @@ import {
 } from "@/admin/api/system.ts";
 import { useEffectAsync } from "@/utils/hook.ts";
 import { withNotify } from "@/api/common.ts";
+import { syncSiteInfo } from "@/admin/api/info.ts";
 import { doVerify } from "@/api/auth.ts";
 import {
   Dialog,
@@ -147,6 +148,182 @@ function RootDialog() {
   );
 }
 
+function BrandTextDialog({
+  data,
+  dispatch,
+}: {
+  data: GeneralState;
+  dispatch: (action: any) => void;
+}) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState<boolean>(false);
+  const lt = data.logo_text;
+  const font = lt?.font ?? "Comfortaa";
+  const weight = lt?.weight ?? 700;
+  const size = lt?.size ?? 18;
+  const margin = lt?.margin ?? 8;
+  const letterSpacing = (lt as any)?.letter_spacing ?? 0;
+  const verticalOffset = (lt as any)?.vertical_offset ?? 0;
+  const text = lt?.text ?? "UniAi";
+  const enabled = lt?.enabled ?? true;
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm">
+          <PencilLine className="h-4 w-4 mr-1" />
+          {t("admin.system.logoText.edit")}
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>{t("admin.system.logoText.brandText")}</DialogTitle>
+          <DialogDescription>
+            <div className="flex items-center justify-center py-4 px-3 my-2 rounded-md border bg-muted/30 min-h-[56px]">
+              {enabled && text ? (
+                <span
+                  style={{
+                        fontFamily: font,
+                        fontWeight: weight,
+                        fontSize: `${size}px`,
+                        letterSpacing: letterSpacing ? `${letterSpacing}px` : undefined,
+                        transform: verticalOffset ? `translateY(${verticalOffset}px)` : undefined,
+                        display: "inline-block",
+                      }}
+                >
+                  {text}
+                </span>
+              ) : (
+                <span className="text-muted-foreground text-sm">{t("admin.system.logoText.previewEmpty")}</span>
+              )}
+            </div>
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col gap-3 py-1">
+          <div className="flex items-center justify-between">
+            <Label>{t("admin.system.logoText.enabled")}</Label>
+            <Switch
+              checked={enabled}
+              onCheckedChange={(value) =>
+                dispatch({ type: "update:general.logo_text.enabled", value })
+              }
+            />
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <Label className="shrink-0">{t("admin.system.logoText.text")}</Label>
+            <Input
+              value={text}
+              onChange={(e) =>
+                dispatch({ type: "update:general.logo_text.text", value: e.target.value })
+              }
+              placeholder="UniAi"
+            />
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <Label className="shrink-0">{t("admin.system.logoText.font")}</Label>
+            <Select
+              value={font}
+              onValueChange={(value) =>
+                dispatch({ type: "update:general.logo_text.font", value })
+              }
+            >
+              <SelectTrigger className="select">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Comfortaa">Comfortaa</SelectItem>
+                <SelectItem value="Archivo">Archivo</SelectItem>
+                <SelectItem value="Poppins">Poppins</SelectItem>
+                <SelectItem value="Nunito">Nunito</SelectItem>
+                <SelectItem value="Inter">Inter</SelectItem>
+                <SelectItem value="system-ui">System UI</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {font === "Comfortaa" && (
+            <div className="flex items-center justify-between gap-3">
+              <Label className="shrink-0">{t("admin.system.logoText.weight")}</Label>
+              <Select
+                value={String(weight)}
+                onValueChange={(value) =>
+                  dispatch({ type: "update:general.logo_text.weight", value: Number(value) })
+                }
+              >
+                <SelectTrigger className="select">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="300">{t("admin.system.logoText.weightLight")}</SelectItem>
+                  <SelectItem value="400">{t("admin.system.logoText.weightRegular")}</SelectItem>
+                  <SelectItem value="500">{t("admin.system.logoText.weightMedium")}</SelectItem>
+                  <SelectItem value="600">{t("admin.system.logoText.weightSemiBold")}</SelectItem>
+                  <SelectItem value="700">{t("admin.system.logoText.weightBold")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <div className="flex items-center justify-between gap-3">
+            <Label className="shrink-0">{t("admin.system.logoText.size")}</Label>
+            <Select
+              value={String(size)}
+              onValueChange={(value) =>
+                dispatch({ type: "update:general.logo_text.size", value: Number(value) })
+              }
+            >
+              <SelectTrigger className="select">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[10, 12, 14, 16, 18, 20, 22, 24, 28, 32, 36, 40, 48, 56, 64, 72, 96].map((s) => (
+                  <SelectItem key={s} value={String(s)}>{s}px</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <Label className="shrink-0">{t("admin.system.logoText.letterSpacing")}</Label>
+            <NumberInput
+              value={letterSpacing}
+              onValueChange={(value) =>
+                dispatch({ type: "update:general.logo_text.letter_spacing", value })
+              }
+              min={-5}
+              max={20}
+            />
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <Label className="shrink-0">{t("admin.system.logoText.margin")}</Label>
+            <NumberInput
+              value={margin}
+              onValueChange={(value) =>
+                dispatch({ type: "update:general.logo_text.margin", value })
+              }
+              min={0}
+              max={64}
+            />
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <Label className="shrink-0">{t("admin.system.logoText.verticalOffset")}</Label>
+            <NumberInput
+              value={verticalOffset}
+              onValueChange={(value) =>
+                dispatch({ type: "update:general.logo_text.vertical_offset", value })
+              }
+              min={-20}
+              max={20}
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="default" onClick={() => setOpen(false)}>
+            {t("admin.confirm")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function General({ data, dispatch, onChange }: CompProps<GeneralState>) {
   const { t } = useTranslation();
 
@@ -196,6 +373,10 @@ function General({ data, dispatch, onChange }: CompProps<GeneralState>) {
             logo: `${window.location.protocol}//${window.location.host}/favicon.ico`,
           })}
         />
+      </ParagraphItem>
+      <ParagraphItem>
+        <Label>{t("admin.system.logoText.brandText")}</Label>
+        <BrandTextDialog data={data} dispatch={dispatch} />
       </ParagraphItem>
       <ParagraphItem>
         <Label>{t("admin.system.backend")}</Label>
@@ -1052,6 +1233,7 @@ function System() {
     const res = await setConfig(data);
 
     if (doToast !== false) withNotify(t, res, true);
+    if (res.status) syncSiteInfo();
   };
 
   const doRefresh = async () => {

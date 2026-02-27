@@ -207,6 +207,25 @@
     "remove-bookmark": "已将模型从菜单栏移除",
     "add-bookmark": "已将模型添加至菜单栏"
   },
+  "folder": {
+    "move-to": "移入文件夹",
+    "drag-here": "将对话拖到这里",
+    "new-folder": "新建文件夹",
+    "section-title": "文件夹",
+    "save": "保存",
+    "cancel": "取消",
+    "create-success": "文件夹已创建",
+    "create-failed": "创建文件夹失败",
+    "rename-success": "文件夹已重命名",
+    "rename-failed": "重命名失败",
+    "delete-success": "文件夹已删除",
+    "delete-failed": "删除文件夹失败",
+    "move-out": "移出文件夹"
+  },
+  "sidebar": {
+    "groups": "分组",
+    "conversations": "对话"
+  },
   "conversation": {
     "title": "对话",
     "search": "搜索对话...",
@@ -1100,6 +1119,24 @@
       "docs": "文档链接",
       "docsTip": "文档链接，留空默认 https://coai.dev",
       "logoTip": "网站 Logo 的链接，用于显示在网站标题，留空默认 (如 {{logo}})",
+      "logoText": {
+        "brandText": "品牌文字",
+        "edit": "编辑",
+        "enabled": "显示品牌文字",
+        "text": "品牌文字内容",
+        "font": "字体",
+        "weight": "字重",
+        "weightLight": "细体 (300)",
+        "weightRegular": "常规 (400)",
+        "weightMedium": "中等 (500)",
+        "weightSemiBold": "半粗 (600)",
+        "weightBold": "粗体 (700)",
+        "size": "字体大小 (px)",
+        "letterSpacing": "字间距 (px)",
+        "verticalOffset": "垂直偏移 (px)",
+        "margin": "与 Logo 间距 (px)",
+        "previewEmpty": "品牌文字已隐藏"
+      },
       "file": "文件解析服务",
       "filePlaceholder": "文件解析服务，留空默认 https://blob.coai.dev (不保证稳定性)",
       "fileTip": "文件解析服务，请参考 [coai-blob-service](https://github.com/zmh-program/blob-service) 项目进行搭建",

@@ -24,6 +24,7 @@ import { AppDispatch, clearCronJobs, createCronJob } from "@/store";
 import { openDialog } from "@/store/settings.ts";
 import ThemeToggle from "@/components/ThemeProvider.tsx";
 import ProjectLink from "@/components/ProjectLink.tsx";
+import { selectLogoText } from "@/store/info.ts";
 
 function NavMenu() {
   const username = useSelector(selectUsername);
@@ -47,9 +48,12 @@ function NavMenu() {
 function NavBar() {
   const { t } = useTranslation();
   const dispatch: AppDispatch = useDispatch();
+  const brandText = useSelector(selectLogoText);
+
   useEffect(() => {
     validateToken(dispatch, getMemory(tokenField));
   }, []);
+
   const auth = useSelector(selectAuthenticated);
 
   useEffectAsync(async () => {
@@ -82,6 +86,23 @@ function NavBar() {
           alt=""
           onClick={() => router.navigate("/")}
         />
+        {brandText.enabled && brandText.text && (
+          <span
+            className="logo-brand-text"
+            style={{
+              fontFamily: brandText.font,
+              fontWeight: brandText.weight ?? 700,
+              fontSize: `${brandText.size}px`,
+              marginLeft: `${brandText.margin}px`,
+              letterSpacing: brandText.letter_spacing ? `${brandText.letter_spacing}px` : undefined,
+              transform: brandText.vertical_offset ? `translateY(${brandText.vertical_offset}px)` : undefined,
+              display: "inline-block",
+            }}
+            onClick={() => router.navigate("/")}
+          >
+            {brandText.text}
+          </span>
+        )}
         <div className={`grow`} />
         <ProjectLink />
         <ThemeToggle size="icon-md" className={`rounded-full overflow-hidden`} />

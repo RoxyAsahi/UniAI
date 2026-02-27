@@ -23,6 +23,7 @@ type Conversation struct {
 	EnableWeb bool              `json:"enable_web"`
 	Shared    bool              `json:"shared"`
 	Context   int               `json:"context"`
+	FolderId  *int64            `json:"folder_id,omitempty"`
 
 	MaxTokens         *int     `json:"max_tokens,omitempty"`
 	Temperature       *float32 `json:"temperature,omitempty"`

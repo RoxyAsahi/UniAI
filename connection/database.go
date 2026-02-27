@@ -91,6 +91,8 @@ func ConnectDatabase() *sql.DB {
 	CreateRedeemTable(db)
 	CreateBroadcastTable(db)
 	CreateUqaAssessmentsTable(db)
+	CreateStarredMessagesTable(db)
+	CreateFoldersTable(db)
 
 	if err := doMigration(db); err != nil {
 		fmt.Println(fmt.Sprintf("migration error: %s", err))
@@ -327,6 +329,43 @@ func CreateUqaAssessmentsTable(db *sql.DB) {
 		  report TEXT NOT NULL,
 		  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		  FOREIGN KEY (user_id) REFERENCES auth(id)
+		);
+	`)
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+
+func CreateStarredMessagesTable(db *sql.DB) {
+	_, err := globals.ExecDb(db, `
+		CREATE TABLE IF NOT EXISTS starred_messages (
+		  id INT PRIMARY KEY AUTO_INCREMENT,
+		  user_id INT NOT NULL,
+		  conversation_id INT NOT NULL,
+		  message_index INT NOT NULL,
+		  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		  FOREIGN KEY (user_id) REFERENCES auth(id) ON DELETE CASCADE,
+		  UNIQUE KEY uk_star (user_id, conversation_id, message_index)
+		);
+	`)
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+
+func CreateFoldersTable(db *sql.DB) {
+	_, err := globals.ExecDb(db, `
+		CREATE TABLE IF NOT EXISTS folders (
+		  id INT PRIMARY KEY AUTO_INCREMENT,
+		  user_id INT NOT NULL,
+		  name VARCHAR(100) NOT NULL,
+		  color VARCHAR(20) NULL,
+		  parent_id INT NULL,
+		  sort_order INT NOT NULL DEFAULT 0,
+		  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+		  FOREIGN KEY (user_id) REFERENCES auth(id) ON DELETE CASCADE,
+		  FOREIGN KEY (parent_id) REFERENCES folders(id) ON DELETE SET NULL
 		);
 	`)
 	if err != nil {

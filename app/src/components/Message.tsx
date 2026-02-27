@@ -59,6 +59,7 @@ function MessageSegment(props: MessageProps) {
     <div
       className={`message ${message.role}`}
       ref={ref}
+      data-message-index={props.index}
       onClick={props.onFocus}
       onMouseEnter={props.onFocus}
       onMouseLeave={(event) => {

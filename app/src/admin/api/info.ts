@@ -5,6 +5,7 @@ import {
   setBlobEndpoint,
   setBuyLink,
   setDocsUrl,
+  setLogoText,
 } from "@/conf/env.ts";
 import { infoEvent } from "@/events/info.ts";
 import { initGoogleAnalytics } from "@/utils/analytics.ts";
@@ -31,6 +32,15 @@ export type SiteInfo = {
   payment_aggregation: boolean;
   ga_tracking_id?: string;
   broadcast?: BroadcastEvent;
+  logo_text?: {
+    enabled: boolean;
+    text: string;
+    font: string;
+    weight: number;
+    size: number;
+    margin: number;
+    letter_spacing: number;
+  };
 };
 
 export async function getSiteInfo(): Promise<SiteInfo> {
@@ -77,6 +87,7 @@ export function syncSiteInfo() {
     setDocsUrl(info.docs);
     setBlobEndpoint(info.file);
     setBuyLink(info.buy_link);
+    if (info.logo_text) setLogoText(info.logo_text);
     initGoogleAnalytics(info.ga_tracking_id);
 
     infoEvent.emit(info);

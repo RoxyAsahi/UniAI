@@ -11,6 +11,7 @@ import {
 import { SiteInfo } from "@/admin/api/info.ts";
 import { useSelector } from "react-redux";
 import { BroadcastEvent } from "@/api/broadcast";
+import { LogoTextConfig } from "@/conf/env.ts";
 
 type Currency = {
   symbol: string;
@@ -26,6 +27,14 @@ export const currencyMap: Record<string, Currency> = {
   eur: { symbol: "€", name: "EUR", id: "eur" },
   gbp: { symbol: "£", name: "GBP", id: "gbp" },
 };
+
+function loadLogoTextFromStore(): LogoTextConfig {
+  try {
+    const raw = getMemory("logo_text");
+    if (raw) return JSON.parse(raw) as LogoTextConfig;
+  } catch (_) {}
+  return { enabled: true, text: "UniAi", font: "Comfortaa", weight: 700, size: 18, margin: 8, letter_spacing: 0 };
+}
 
 export const infoSlice = createSlice({
   name: "info",
@@ -49,6 +58,7 @@ export const infoSlice = createSlice({
     hide_key_docs: getBooleanMemory("hide_key_docs", false),
     backend: getMemory("backend"),
     group_pricing: {},
+    logo_text: loadLogoTextFromStore(),
 
     broadcast: getMemory("broadcast_data")
       ? (JSON.parse(getMemory("broadcast_data")) as BroadcastEvent)
@@ -59,6 +69,7 @@ export const infoSlice = createSlice({
     oauth_providers: {},
   } as SiteInfo & {
     broadcast: BroadcastEvent;
+    logo_text: LogoTextConfig;
   },
   reducers: {
     setForm: (state, action) => {
@@ -85,6 +96,18 @@ export const infoSlice = createSlice({
         message: "",
         firstReceived: false,
       };
+      if (form.logo_text) {
+        (state as any).logo_text = {
+          enabled: form.logo_text.enabled ?? true,
+          text: form.logo_text.text ?? "UniAi",
+          font: form.logo_text.font ?? "Comfortaa",
+          weight: form.logo_text.weight ?? 700,
+          size: form.logo_text.size ?? 18,
+          margin: form.logo_text.margin ?? 8,
+          letter_spacing: form.logo_text.letter_spacing ?? 0,
+        };
+        setMemory("logo_text", JSON.stringify((state as any).logo_text));
+      }
       setMemory("title", state.title);
       setMemory("logo", state.logo);
       setMemory("file", state.file);
@@ -139,6 +162,9 @@ export const infoBackendSelector = (state: RootState): string | undefined =>
   (state.info as any).backend;
 export const infoBroadcastSelector = (state: RootState): BroadcastEvent =>
   state.info.broadcast;
+
+export const selectLogoText = (state: RootState): LogoTextConfig =>
+  (state.info as any).logo_text ?? { enabled: true, text: "UniAi", font: "Comfortaa", weight: 700, size: 18, margin: 8, letter_spacing: 0 };
 
 export const useCurrency = (): Currency => {
   const currency = useSelector(infoCurrencySelector);

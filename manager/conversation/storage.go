@@ -92,8 +92,8 @@ func LoadConversation(db *sql.DB, userId int64, conversationId int64) *Conversat
 func LoadConversationList(db *sql.DB, userId int64) []Conversation {
 	var conversationList []Conversation
 	rows, err := globals.QueryDb(db, `
-			SELECT conversation_id, conversation_name FROM conversation WHERE user_id = ? 
-			ORDER BY conversation_id DESC LIMIT 100
+			SELECT conversation_id, conversation_name, folder_id FROM conversation WHERE user_id = ?
+			ORDER BY folder_order ASC, conversation_id DESC LIMIT 100
 	`, userId)
 	if err != nil {
 		return conversationList
@@ -107,9 +107,13 @@ func LoadConversationList(db *sql.DB, userId int64) []Conversation {
 
 	for rows.Next() {
 		var conversation Conversation
-		err := rows.Scan(&conversation.Id, &conversation.Name)
+		var folderId sql.NullInt64
+		err := rows.Scan(&conversation.Id, &conversation.Name, &folderId)
 		if err != nil {
 			continue
+		}
+		if folderId.Valid {
+			conversation.FolderId = &folderId.Int64
 		}
 		conversationList = append(conversationList, conversation)
 	}

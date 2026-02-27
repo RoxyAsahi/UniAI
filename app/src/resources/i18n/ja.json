@@ -73,6 +73,25 @@
     "add-bookmark": "モデルがメニューバーに追加されました",
     "show-1m-pricing": "100万トークン"
   },
+  "folder": {
+    "move-to": "フォルダに移動",
+    "drag-here": "会話をここにドラッグ",
+    "new-folder": "新しいフォルダ",
+    "section-title": "フォルダ",
+    "save": "保存",
+    "cancel": "キャンセル",
+    "create-success": "フォルダを作成しました",
+    "create-failed": "フォルダの作成に失敗しました",
+    "rename-success": "フォルダ名を変更しました",
+    "rename-failed": "名前の変更に失敗しました",
+    "delete-success": "フォルダを削除しました",
+    "delete-failed": "フォルダの削除に失敗しました",
+    "move-out": "フォルダから削除"
+  },
+  "sidebar": {
+    "groups": "グループ",
+    "conversations": "会話"
+  },
   "conversation": {
     "title": "ダイアログ",
     "empty": "空",
@@ -653,6 +672,24 @@
       "titleTip": "サイトタイトルに表示するサイト名、デフォルトの場合は空白のままにします",
       "logo": "サイトロゴ",
       "logoTip": "サイトタイトルに表示するサイトロゴへのリンク、デフォルトの場合は空白のままにします（例：{{ logo }}）",
+      "logoText": {
+        "brandText": "ブランドテキスト",
+        "edit": "編集",
+        "enabled": "ブランドテキストを表示",
+        "text": "ブランドテキスト内容",
+        "font": "フォント",
+        "weight": "フォントウェイト",
+        "weightLight": "ライト (300)",
+        "weightRegular": "レギュラー (400)",
+        "weightMedium": "ミディアム (500)",
+        "weightSemiBold": "セミボールド (600)",
+        "weightBold": "ボールド (700)",
+        "size": "フォントサイズ (px)",
+        "letterSpacing": "文字間隔 (px)",
+        "verticalOffset": "垂直オフセット (px)",
+        "margin": "ロゴとの間隔 (px)",
+        "previewEmpty": "ブランドテキストは非表示です"
+      },
       "backendPlaceholder": "バックエンドコールバックドメイン名、デフォルトで空、コールバックを受け入れるために必要",
       "docs": "ドキュメントリンク",
       "docsTip": "ドキュメントリンク、デフォルトの場合は空白のままhttps://coai.dev",

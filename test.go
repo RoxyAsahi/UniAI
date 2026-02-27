@@ -1,9 +1,12 @@
+//go:build ignore
+
 package main
 
 import (
 	"fmt"
-	"github.com/spf13/viper"
 	"strings"
+
+	"github.com/spf13/viper"
 )
 
 func main() {

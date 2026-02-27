@@ -1,7 +1,7 @@
 import "@/assets/pages/preset.less";
 import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input.tsx";
-import { useMemo, useState, useReducer } from "react";
+import { useMemo, useState, useReducer, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { AppDispatch } from "@/store/index.ts";
 import {
@@ -10,6 +10,9 @@ import {
   updateMasks,
 } from "@/store/chat.ts";
 import { selectAuthenticated } from "@/store/auth.ts";
+import { useFolders } from "@/store/folder";
+import { addFolder } from "@/store/folder";
+import { createFolder } from "@/api/folder";
 import { goAuth } from "@/utils/app.ts";
 import { cn } from "@/components/ui/lib/utils.ts";
 import { ScrollArea } from "@/components/ui/scroll-area.tsx";
@@ -110,12 +113,18 @@ function Preset() {
   const customMasks = useSelector(selectCustomMasks);
   const { mask: setMaskAction } = useConversationActions();
   const dispatch = useDispatch<AppDispatch>();
+  const folders = useFolders();
 
   const [searchText, setSearchText] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorState, editorDispatch] = useReducer(maskEditorReducer, initialCustomMask);
+
+  // Load custom masks when the page mounts
+  useEffect(() => {
+    updateMasks(dispatch);
+  }, [dispatch]);
 
   const categories = useMemo(() => {
     const baseCategories = [
@@ -180,7 +189,25 @@ function Preset() {
   };
 
   const handleUseMask = async (mask: Mask) => {
-    setMaskAction(mask);
+    let folderId: number | undefined;
+
+    // Only create/find folder for authenticated users
+    if (auth) {
+      // Find existing folder by name (case-sensitive match)
+      const existing = folders.find((f) => f.name === mask.name);
+      if (existing) {
+        folderId = existing.id;
+      } else {
+        // Create a new folder with the preset's name and emoji
+        const created = await createFolder(mask.name, undefined, mask.avatar);
+        if (created) {
+          dispatch(addFolder(created));
+          folderId = created.id;
+        }
+      }
+    }
+
+    setMaskAction(mask, folderId);
     router.navigate("/");
     toast.info(t("mask.switch-preset"), {
       description: t("mask.switch-preset-desc"),
@@ -254,11 +281,11 @@ function Preset() {
                 
                 return (
                   <motion.div
-                    key={isCustom ? `custom-${(mask as CustomMask).id}` : `builtin-${index}`}
+                    key={isCustom ? `custom-${(mask as CustomMask).id}` : `builtin-${mask.name}`}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95 }}
-                    transition={{ duration: 0.2, delay: index * 0.05 }}
+                    transition={{ duration: 0.15, delay: Math.min(index, 8) * 0.03 }}
                     className="group flex flex-col relative p-5 rounded-xl border border-border bg-card hover:shadow-md transition-all cursor-pointer"
                     onClick={() => handleUseMask(mask)}
                   >

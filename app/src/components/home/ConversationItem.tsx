@@ -2,6 +2,7 @@ import { mobile } from "@/utils/device.ts";
 import { filterMessage } from "@/utils/processor.ts";
 import { setMenu } from "@/store/menu.ts";
 import {
+  FolderInput,
   Loader2,
   MessageSquare,
   MessagesSquare,
@@ -17,21 +18,26 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.tsx";
 import { useDispatch } from "react-redux";
 import { useTranslation } from "react-i18next";
 import { ConversationInstance } from "@/api/types.tsx";
 import { useState } from "react";
-import { useConversationActions } from "@/store/chat.ts";
+import { useConversationActions, updateConversationFolder } from "@/store/chat.ts";
 import { cn } from "@/components/ui/lib/utils.ts";
 import PopupDialog, { popupTypes } from "@/components/PopupDialog.tsx";
 import { withNotify } from "@/api/common.ts";
 import Clickable from "@/components/ui/clickable.tsx";
+import { Folder, moveConversation } from "@/api/folder.ts";
 
 type ConversationItemProps = {
   conversation: ConversationInstance;
   current: number;
+  folders?: Folder[];
   operate: (conversation: {
     target: ConversationInstance;
     type: string;
@@ -40,6 +46,7 @@ type ConversationItemProps = {
 function ConversationItem({
   conversation,
   current,
+  folders = [],
   operate,
 }: ConversationItemProps) {
   const dispatch = useDispatch();
@@ -52,6 +59,12 @@ function ConversationItem({
   const [editDialog, setEditDialog] = useState(false);
 
   const loading = false;
+
+  const handleMoveToFolder = async (folderId: number) => {
+    setOpen(false);
+    const ok = await moveConversation(conversation.id, folderId);
+    if (ok) dispatch(updateConversationFolder({ id: conversation.id, folderId }));
+  };
 
   return (
     <Clickable
@@ -135,7 +148,6 @@ function ConversationItem({
           />
           <DropdownMenuItem
             onClick={(e) => {
-              // prevent click event from opening the dropdown menu
               if (offset + 500 > new Date().getTime()) return;
 
               e.preventDefault();
@@ -147,6 +159,31 @@ function ConversationItem({
             <PencilLine className={`h-4 w-4 mx-1`} />
             {t("conversation.edit-title")}
           </DropdownMenuItem>
+
+          {/* Move to folder submenu — only shown when folders exist */}
+          {folders.length > 0 && (
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <FolderInput className={`h-4 w-4 mx-1`} />
+                {t("folder.move-to")}
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                {folders.map((f) => (
+                  <DropdownMenuItem
+                    key={f.id}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleMoveToFolder(f.id);
+                    }}
+                  >
+                    {f.name}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          )}
+
           <DropdownMenuItem
             onClick={(e) => {
               e.preventDefault();

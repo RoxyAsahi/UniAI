@@ -20,5 +20,19 @@ func Register(app *gin.RouterGroup) {
 		router.GET("/mask/view", LoadMaskAPI)
 		router.POST("/mask/save", SaveMaskAPI)
 		router.POST("/mask/delete", DeleteMaskAPI)
+
+		// star (timeline)
+		router.POST("/star", StarAPI)
+		router.POST("/unstar", UnstarAPI)
+		router.GET("/starred", GetStarredAPI)
+
+		// folders
+		router.GET("/folders", ListFoldersAPI)
+		router.POST("/folder", CreateFolderAPI)
+		router.POST("/folder/update", UpdateFolderAPI)
+		router.GET("/folder/delete", DeleteFolderAPI)
+		router.POST("/folder/reorder", ReorderFoldersAPI)
+		router.POST("/reorder", ReorderConversationsAPI)
+		router.POST("/move", MoveConversationAPI)
 	}
 }

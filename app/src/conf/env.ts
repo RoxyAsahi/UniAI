@@ -1,6 +1,43 @@
 import { updateDocumentTitle, updateFavicon } from "@/utils/dom.ts";
 import { setMemory } from "@/utils/memory.ts";
 
+export type LogoTextConfig = {
+  enabled: boolean;
+  text: string;
+  font: string;
+  weight: number;
+  size: number;
+  margin: number;
+  letter_spacing: number;
+  vertical_offset: number;
+};
+
+const defaultLogoText: LogoTextConfig = {
+  enabled: true,
+  text: "UniAi",
+  font: "Comfortaa",
+  weight: 700,
+  size: 18,
+  margin: 8,
+  letter_spacing: 0,
+  vertical_offset: 0,
+};
+
+function loadLogoText(): LogoTextConfig {
+  try {
+    const raw = localStorage.getItem("logo_text");
+    if (raw) return { ...defaultLogoText, ...JSON.parse(raw) };
+  } catch (_) {}
+  return { ...defaultLogoText };
+}
+
+export let logoText: LogoTextConfig = loadLogoText();
+
+export function setLogoText(config: Partial<LogoTextConfig>): void {
+  logoText = { ...logoText, ...config };
+  setMemory("logo_text", JSON.stringify(logoText));
+}
+
 export let appName =
   localStorage.getItem("app_name") || import.meta.env.VITE_APP_NAME || "CoAI";
 export let appLogo =

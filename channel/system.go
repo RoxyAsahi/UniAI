@@ -9,30 +9,43 @@ import (
 	"github.com/spf13/viper"
 )
 
+type logoTextState struct {
+	Enabled        bool    `json:"enabled" mapstructure:"enabled"`
+	Text           string  `json:"text" mapstructure:"text"`
+	Font           string  `json:"font" mapstructure:"font"`
+	Weight         int     `json:"weight" mapstructure:"weight"`
+	Size           int     `json:"size" mapstructure:"size"`
+	Margin         int     `json:"margin" mapstructure:"margin"`
+	LetterSpacing  float64 `json:"letter_spacing" mapstructure:"letterspacing"`
+	VerticalOffset float64 `json:"vertical_offset" mapstructure:"verticaloffset"`
+}
+
 type ApiInfo struct {
-	Title        string   `json:"title"`
-	Logo         string   `json:"logo"`
-	File         string   `json:"file"`
-	Docs         string   `json:"docs"`
-	Announcement string   `json:"announcement"`
-	BuyLink      string   `json:"buy_link"`
-	Contact      string   `json:"contact"`
-	Footer       string   `json:"footer"`
-	AuthFooter   bool     `json:"auth_footer"`
-	Mail         bool     `json:"mail"`
-	Article      []string `json:"article"`
-	Generation   []string `json:"generation"`
-	RelayPlan    bool     `json:"relay_plan"`
+	Title        string         `json:"title"`
+	Logo         string         `json:"logo"`
+	File         string         `json:"file"`
+	Docs         string         `json:"docs"`
+	Announcement string         `json:"announcement"`
+	BuyLink      string         `json:"buy_link"`
+	Contact      string         `json:"contact"`
+	Footer       string         `json:"footer"`
+	AuthFooter   bool           `json:"auth_footer"`
+	Mail         bool           `json:"mail"`
+	Article      []string       `json:"article"`
+	Generation   []string       `json:"generation"`
+	RelayPlan    bool           `json:"relay_plan"`
+	LogoText     *logoTextState `json:"logo_text"`
 }
 
 type generalState struct {
-	Title       string `json:"title" mapstructure:"title"`
-	Logo        string `json:"logo" mapstructure:"logo"`
-	Backend     string `json:"backend" mapstructure:"backend"`
-	File        string `json:"file" mapstructure:"file"`
-	Docs        string `json:"docs" mapstructure:"docs"`
-	PWAManifest string `json:"pwa_manifest" mapstructure:"pwamanifest"`
-	DebugMode   bool   `json:"debug_mode" mapstructure:"debugmode"`
+	Title       string         `json:"title" mapstructure:"title"`
+	Logo        string         `json:"logo" mapstructure:"logo"`
+	Backend     string         `json:"backend" mapstructure:"backend"`
+	File        string         `json:"file" mapstructure:"file"`
+	Docs        string         `json:"docs" mapstructure:"docs"`
+	PWAManifest string         `json:"pwa_manifest" mapstructure:"pwamanifest"`
+	DebugMode   bool           `json:"debug_mode" mapstructure:"debugmode"`
+	LogoText    *logoTextState `json:"logo_text" mapstructure:"logotext"`
 }
 
 type siteState struct {
@@ -151,6 +164,7 @@ func (c *SystemConfig) AsInfo() ApiInfo {
 		Article:      c.Common.Article,
 		Generation:   c.Common.Generation,
 		RelayPlan:    c.Site.RelayPlan,
+		LogoText:     c.General.LogoText,
 	}
 }
 

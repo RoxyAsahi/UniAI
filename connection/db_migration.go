@@ -65,6 +65,29 @@ func doMigration(db *sql.DB) error {
 		return err
 	}
 
+	// add folder_id and folder_order fields for folder management
+	if err := execSql(db, `
+		ALTER TABLE conversation
+		ADD COLUMN folder_id INT NULL;
+	`); err != nil {
+		return err
+	}
+
+	if err := execSql(db, `
+		ALTER TABLE conversation
+		ADD COLUMN folder_order INT NOT NULL DEFAULT 0;
+	`); err != nil {
+		return err
+	}
+
+	// add avatar field to folders table for preset emoji support
+	if err := execSql(db, `
+		ALTER TABLE folders
+		ADD COLUMN avatar VARCHAR(100) NULL;
+	`); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -76,6 +99,29 @@ func doSqliteMigration(db *sql.DB) error {
 	if err := execSql(db, `
 		ALTER TABLE conversation
 		ADD COLUMN task_id VARCHAR(255) NULL;
+	`); err != nil {
+		return err
+	}
+
+	// add folder_id and folder_order fields for folder management
+	if err := execSql(db, `
+		ALTER TABLE conversation
+		ADD COLUMN folder_id INT NULL;
+	`); err != nil {
+		return err
+	}
+
+	if err := execSql(db, `
+		ALTER TABLE conversation
+		ADD COLUMN folder_order INT NOT NULL DEFAULT 0;
+	`); err != nil {
+		return err
+	}
+
+	// add avatar field to folders table for preset emoji support
+	if err := execSql(db, `
+		ALTER TABLE folders
+		ADD COLUMN avatar VARCHAR(100) NULL;
 	`); err != nil {
 		return err
 	}

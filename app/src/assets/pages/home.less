@@ -509,6 +509,19 @@
     padding: 4px;
   }
 
+  .sidebar-section-header {
+    user-select: none;
+    border-radius: var(--radius);
+    
+    &:hover {
+      background-color: hsl(var(--muted) / 0.5);
+    }
+    
+    span {
+      font-family: var(--font-family-normal);
+    }
+  }
+
   .sidebar-menu {
     height: max-content;
     width: 100%;
@@ -695,6 +708,28 @@
       width: 0;
     }
   }
+}
+
+/* ===== Folder system animations ===== */
+
+.folder-header {
+  transition: background-color 0.15s ease, outline 0.15s ease;
+}
+
+.folder-header.drag-over {
+  background-color: hsl(var(--primary) / 0.06) !important;
+  outline: 2px dashed hsl(var(--primary) / 0.4);
+  border-radius: 8px;
+}
+
+@keyframes invalidShake {
+  0%, 100% { transform: translateX(0); }
+  10%, 50%, 90% { transform: translateX(-4px); }
+  30%, 70% { transform: translateX(4px); }
+}
+
+.folder-shake {
+  animation: invalidShake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97);
 }
 
 .chat-container {

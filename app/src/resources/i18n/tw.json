@@ -146,6 +146,25 @@
     "remove-bookmark": "已將模型從功能表列移除",
     "add-bookmark": "已將模型新增至功能表欄"
   },
+  "folder": {
+    "move-to": "移入資料夾",
+    "drag-here": "將對話拖到這裡",
+    "new-folder": "新建資料夾",
+    "section-title": "資料夾",
+    "save": "儲存",
+    "cancel": "取消",
+    "create-success": "資料夾已建立",
+    "create-failed": "建立資料夾失敗",
+    "rename-success": "資料夾已重新命名",
+    "rename-failed": "重新命名失敗",
+    "delete-success": "資料夾已刪除",
+    "delete-failed": "刪除資料夾失敗",
+    "move-out": "移出資料夾"
+  },
+  "sidebar": {
+    "groups": "分組",
+    "conversations": "對話"
+  },
   "conversation": {
     "title": "對話",
     "empty": "空空如也",
@@ -851,6 +870,24 @@
       "docs": "文件連結",
       "docsTip": "文件連結，留空為預設值 https://coai.dev",
       "logoTip": "網站 Logo 的連結，用於顯示在網站標題，留空為預設值（如 {{logo}}）",
+      "logoText": {
+        "brandText": "品牌文字",
+        "edit": "編輯",
+        "enabled": "顯示品牌文字",
+        "text": "品牌文字內容",
+        "font": "字體",
+        "weight": "字重",
+        "weightLight": "細體 (300)",
+        "weightRegular": "常規 (400)",
+        "weightMedium": "中等 (500)",
+        "weightSemiBold": "半粗 (600)",
+        "weightBold": "粗體 (700)",
+        "size": "字體大小 (px)",
+        "letterSpacing": "字間距 (px)",
+        "verticalOffset": "垂直偏移 (px)",
+        "margin": "與 Logo 間距 (px)",
+        "previewEmpty": "品牌文字已隱藏"
+      },
       "file": "檔案解析服務",
       "filePlaceholder": "檔案解析服務，留空為預設值 https://blob.chatnio.net（不保證穩定性）",
       "fileTip": "檔案解析服務，請參考 [chatnio-blob-service](https://github.com/coaidev/blob-service) 專案進行建置",
