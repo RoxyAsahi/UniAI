@@ -1,0 +1,841 @@
+import { createSlice } from "@reduxjs/toolkit";
+import {
+  AssistantRole,
+  ConversationInstance,
+  Model,
+  SystemRole,
+  UserRole,
+} from "@/api/types.tsx";
+import { Message } from "@/api/types.tsx";
+import { AppDispatch, RootState } from "./index.ts";
+import {
+  getArrayMemory,
+  getBooleanMemory,
+  getMemory,
+  setArrayMemory,
+  setMemory,
+  setNumberMemory,
+} from "@/utils/memory.ts";
+import {
+  getOfflineModels,
+  loadPreferenceModels,
+  setOfflineModels,
+} from "@/conf/storage.ts";
+import {
+  deleteConversation as doDeleteConversation,
+  deleteAllConversations as doDeleteAllConversations,
+  renameConversation as doRenameConversation,
+  loadConversation,
+  getConversationList,
+} from "@/api/history.ts";
+import { CustomMask, Mask } from "@/masks/types.ts";
+import { listMasks } from "@/api/mask.ts";
+import { moveConversation } from "@/api/folder.ts";
+import { useDispatch, useSelector } from "react-redux";
+import { useMemo } from "react";
+import { ConnectionStack, StreamMessage } from "@/api/connection.ts";
+import { useTranslation } from "react-i18next";
+import {
+  contextSelector,
+  frequencyPenaltySelector,
+  historySelector,
+  maxTokensSelector,
+  presencePenaltySelector,
+  repetitionPenaltySelector,
+  temperatureSelector,
+  topKSelector,
+  topPSelector,
+} from "@/store/settings.ts";
+
+export type ConversationSerialized = {
+  model?: string;
+  messages: Message[];
+};
+
+export type ConnectionEvent = {
+  id: number;
+  event: string;
+  index?: number;
+  message?: string;
+};
+
+type initialStateType = {
+  history: ConversationInstance[];
+  conversations: Record<number, ConversationSerialized>;
+  model: string;
+  web: boolean;
+  current: number;
+  model_list: string[];
+  market: boolean;
+  mask_item: Mask | null;
+  mask_folder_id: number | null;
+  custom_masks: CustomMask[];
+  support_models: Model[];
+};
+
+const defaultConversation: ConversationSerialized = { messages: [] };
+
+export function inModel(supportModels: Model[], model: string): boolean {
+  return (
+    model.length > 0 &&
+    supportModels.filter((item: Model) => item.id === model).length > 0
+  );
+}
+
+export function getModel(
+  supportModels: Model[],
+  model: string | undefined | null,
+): string {
+  if (supportModels.length === 0) return "";
+  return model && inModel(supportModels, model) ? model : supportModels[0].id;
+}
+
+export function getModelList(
+  supportModels: Model[],
+  models: string[],
+  select: string,
+): string[] {
+  const list = models.filter((item) => inModel(supportModels, item));
+  const selection = getModel(supportModels, select);
+  if (!list.includes(selection)) list.push(selection);
+  return list;
+}
+
+export const stack = new ConnectionStack();
+const offline = loadPreferenceModels(getOfflineModels());
+
+// ---------------------------------------------------------------------------
+// Preset-avatar persistence
+// Avatars (emoji) and preset names are client-side only — the server never
+// stores them. We persist them in localStorage so they survive page refreshes.
+// ---------------------------------------------------------------------------
+const AVATAR_STORE_KEY = "conversation_avatars";
+
+type AvatarEntry = { avatar: string; name: string };
+
+function loadAvatarStore(): Record<number, AvatarEntry> {
+  try {
+    return JSON.parse(localStorage.getItem(AVATAR_STORE_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function saveAvatarStore(store: Record<number, AvatarEntry>) {
+  localStorage.setItem(AVATAR_STORE_KEY, JSON.stringify(store));
+}
+
+function persistAvatar(id: number, avatar: string, name: string) {
+  const store = loadAvatarStore();
+  store[id] = { avatar, name };
+  saveAvatarStore(store);
+}
+
+function forgetAvatar(id: number) {
+  const store = loadAvatarStore();
+  delete store[id];
+  saveAvatarStore(store);
+}
+
+function clearAvatarStore() {
+  localStorage.removeItem(AVATAR_STORE_KEY);
+}
+const chatSlice = createSlice({
+  name: "chat",
+  initialState: {
+    history: [],
+    messages: [],
+    conversations: {
+      [-1]: { ...defaultConversation },
+    },
+    web: getBooleanMemory("web", false),
+    current: -1,
+    model: getModel(offline, getMemory("model")),
+    model_list: getModelList(
+      offline,
+      getArrayMemory("model_mark_list"),
+      getMemory("model"),
+    ),
+    market: false,
+    mask_item: null,
+    mask_folder_id: null,
+    custom_masks: [],
+    support_models: offline,
+  } as initialStateType,
+  reducers: {
+    createMessage: (state, action) => {
+      const { id, role, content } = action.payload as {
+        id: number;
+        role: string;
+        content?: string;
+      };
+
+      const conversation = state.conversations[id];
+      if (!conversation) return;
+
+      conversation.messages.push({
+        role: role ?? AssistantRole,
+        content: content ?? "",
+        end: role === AssistantRole ? false : undefined,
+      });
+    },
+    fillMaskItem: (state) => {
+      const conversation = state.conversations[-1];
+
+      if (state.mask_item && conversation.messages.length === 0) {
+        // context[0] is already the system message (synced with description),
+        // so just copy context as-is — no need to prepend description separately.
+        conversation.messages = state.mask_item.context.filter(
+          (m) => m.content.trim().length > 0,
+        );
+        state.mask_item = null;
+      }
+    },
+    updateMessage: (state, action) => {
+      const { id, message } = action.payload as {
+        id: number;
+        message: StreamMessage;
+      };
+      const conversation = state.conversations[id];
+      if (!conversation) return;
+
+      if (conversation.messages.length === 0)
+        conversation.messages.push({
+          role: AssistantRole,
+          content: message.message,
+          keyword: message.keyword,
+          quota: message.quota,
+          end: message.end,
+          plan: message.plan,
+        });
+
+      const instance = conversation.messages[conversation.messages.length - 1];
+      if (message.message.length > 0) instance.content += message.message;
+      if (message.keyword) instance.keyword = message.keyword;
+      if (message.quota) instance.quota = message.quota;
+      if (message.end) instance.end = message.end;
+      instance.plan = message.plan;
+    },
+    removeMessage: (state, action) => {
+      const { id, idx } = action.payload as { id: number; idx: number };
+      const conversation = state.conversations[id];
+      if (!conversation) return;
+
+      conversation.messages.splice(idx, 1);
+    },
+    restartMessage: (state, action) => {
+      const id = action.payload as number;
+      const conversation = state.conversations[id];
+      if (!conversation || conversation.messages.length === 0) return;
+
+      conversation.messages.push({
+        role: AssistantRole,
+        content: "",
+        end: false,
+      });
+    },
+    editMessage: (state, action) => {
+      const { id, idx, message } = action.payload as {
+        id: number;
+        idx: number;
+        message: string;
+      };
+      const conversation = state.conversations[id];
+      if (!conversation || conversation.messages.length <= idx) return;
+
+      conversation.messages[idx].content = message;
+    },
+    stopMessage: (state, action) => {
+      const { id } = action.payload as { id: number };
+      const conversation = state.conversations[id];
+      if (!conversation || conversation.messages.length === 0) return;
+
+      conversation.messages[conversation.messages.length - 1].end = true;
+    },
+    raiseConversation: (state, action) => {
+      // raise conversation `-1` to target id
+      const id = action.payload as number;
+      const conversation = state.conversations[-1];
+      if (!conversation || id === -1) return;
+
+      state.conversations[id] = conversation;
+      if (state.current === -1) state.current = id;
+
+      state.conversations[-1] = { ...defaultConversation };
+    },
+    importConversation: (state, action) => {
+      const { conversation, id } = action.payload as {
+        conversation: ConversationSerialized;
+        id: number;
+      };
+
+      if (state.conversations[id]) return;
+      state.conversations[id] = conversation;
+    },
+    deleteConversation: (state, action) => {
+      const id = action.payload as number;
+
+      if (id === -1) return;
+
+      state.history = state.history.filter((item) => item.id !== id);
+      forgetAvatar(id);
+
+      if (!state.conversations[id]) return;
+
+      if (state.current === id) state.current = -1;
+      delete state.conversations[id];
+    },
+    deleteAllConversation: (state) => {
+      state.history = [];
+      clearAvatarStore();
+
+      state.conversations = { [-1]: { ...defaultConversation } };
+      state.current = -1;
+    },
+    setHistory: (state, action) => {
+      const newHistory = action.payload as ConversationInstance[];
+      // preserve any existing preflight entry (id: -1) so it isn't wiped by server refreshes
+      const preflight = state.history.find((item) => item.id === -1);
+      // Load persisted avatars so page-refresh doesn't lose preset emoji/names
+      const avatarStore = loadAvatarStore();
+      // preserve avatar, name, and clientKey from existing entries so that:
+      // - a background refresh never flashes away the emoji/preset name
+      // - the stable React key (clientKey) is not lost, preventing AnimatePresence
+      //   from treating the entry as a new element and replaying enter animations
+      // Also fall back to localStorage for entries that have no in-memory avatar
+      // (e.g. after a full page refresh where the Redux store was reset).
+      const merged = newHistory.map((item) => {
+        const existing = state.history.find((h) => h.id === item.id);
+        const stored = avatarStore[item.id];
+        const avatar = existing?.avatar || stored?.avatar;
+        const name = existing?.avatar ? existing.name : (stored?.avatar ? stored.name : item.name);
+        // Preserve folder_id correctly:
+        // - Server returns the field (number) → use server value (authoritative)
+        // - Server omits the field (undefined, via omitempty) → fall back to local
+        //   optimistic value set by updateConversationFolder after a drag/move
+        // Do NOT use ?? here: ?? treats null the same as undefined, which would
+        // incorrectly restore a folder_id after the user moves a conversation out.
+        const folder_id = item.folder_id !== undefined ? item.folder_id : existing?.folder_id;
+        return {
+          ...item,
+          ...(avatar && { avatar, name }),
+          ...(existing?.clientKey && { clientKey: existing.clientKey }),
+          // Only spread folder_id when it has a meaningful value (not null/undefined)
+          ...(folder_id != null ? { folder_id } : {}),
+        };
+      });
+      state.history = preflight ? [preflight, ...merged] : merged;
+    },
+    resetNewConversation: (state) => {
+      state.conversations[-1] = { ...defaultConversation };
+    },
+    preflightHistory: (state, action) => {
+      const { name, avatar, folder_id } = action.payload as { name: string; avatar?: string; folder_id?: number };
+
+      // replace existing { id: -1 } entry or prepend a new one
+      const existingIdx = state.history.findIndex((item) => item.id === -1);
+      if (existingIdx !== -1) {
+        // reuse the existing clientKey so the React key stays stable
+        const existingKey = state.history[existingIdx].clientKey;
+        state.history[existingIdx] = { id: -1, name, message: [], avatar, folder_id, clientKey: existingKey };
+      } else {
+        // assign a fresh stable key for this preflight entry
+        const clientKey = `preflight-${Date.now()}`;
+        state.history = [{ id: -1, name, message: [], avatar, folder_id, clientKey }, ...state.history];
+      }
+    },
+    removePreflight: (state) => {
+      state.history = state.history.filter((item) => item.id !== -1);
+    },
+    upgradePreflight: (state, action) => {
+      // Atomically promote the preflight entry (id: -1) to a real conversation id.
+      // Keeps the preset name and avatar — no intermediate state, no flash.
+      const id = action.payload as number;
+      const idx = state.history.findIndex((item) => item.id === -1);
+      if (idx !== -1) {
+        const entry = state.history[idx];
+        state.history[idx] = { ...entry, id };
+        // Persist avatar+name to localStorage so they survive page refreshes
+        if (entry.avatar) {
+          persistAvatar(id, entry.avatar, entry.name);
+        }
+      }
+    },
+    renameHistory: (state, action) => {
+      const { id, name } = action.payload as { id: number; name: string };
+      const conversation = state.history.find((item) => item.id === id);
+      if (conversation) conversation.name = name;
+    },
+    updateHistoryAvatar: (state, action) => {
+      const { id, avatar } = action.payload as { id: number; avatar: string };
+      const entry = state.history.find((item) => item.id === id);
+      if (entry) entry.avatar = avatar;
+    },
+    setModel: (state, action) => {
+      const model = action.payload as string;
+      if (!model || model === "") return;
+      if (!inModel(state.support_models, model)) return;
+
+      // if model is not in model list, add it
+      // if (!state.model_list.includes(model)) {
+      //   console.log("[model] auto add model to list:", model);
+      //   state.model_list.push(model);
+      //   setArrayMemory("model_mark_list", state.model_list);
+      // }
+
+      setMemory("model", model as string);
+      state.model = action.payload as string;
+    },
+    setWeb: (state, action) => {
+      setMemory("web", action.payload ? "true" : "false");
+      state.web = action.payload as boolean;
+    },
+    toggleWeb: (state) => {
+      const web = !state.web;
+      setMemory("web", web ? "true" : "false");
+      state.web = web;
+    },
+    setCurrent: (state, action) => {
+      const current = action.payload as number;
+      state.current = current;
+
+      const conversation = state.conversations[current];
+      if (!conversation) return;
+      if (
+        conversation.model &&
+        inModel(state.support_models, conversation.model)
+      ) {
+        state.model = conversation.model;
+      }
+    },
+    setModelList: (state, action) => {
+      const models = action.payload as string[];
+      state.model_list = models.filter((item) =>
+        inModel(state.support_models, item),
+      );
+      setArrayMemory("model_mark_list", models);
+    },
+    addModelList: (state, action) => {
+      const model = action.payload as string;
+      if (
+        inModel(state.support_models, model) &&
+        !state.model_list.includes(model)
+      ) {
+        state.model_list.push(model);
+        setArrayMemory("model_mark_list", state.model_list);
+      }
+    },
+    removeModelList: (state, action) => {
+      const model = action.payload as string;
+      if (
+        inModel(state.support_models, model) &&
+        state.model_list.includes(model)
+      ) {
+        state.model_list = state.model_list.filter((item) => item !== model);
+        setArrayMemory("model_mark_list", state.model_list);
+      }
+    },
+    setMaskItem: (state, action) => {
+      state.mask_item = action.payload as Mask;
+    },
+    clearMaskItem: (state) => {
+      state.mask_item = null;
+      state.mask_folder_id = null;
+    },
+    setMaskFolderId: (state, action) => {
+      state.mask_folder_id = action.payload as number | null;
+    },
+    clearMaskFolderId: (state) => {
+      state.mask_folder_id = null;
+    },
+    setCustomMasks: (state, action) => {
+      state.custom_masks = action.payload as CustomMask[];
+    },
+    setSupportModels: (state, action) => {
+      const models = action.payload as Model[];
+
+      state.support_models = models;
+      state.model = getModel(models, getMemory("model"));
+      state.model_list = getModelList(
+        models,
+        getArrayMemory("model_mark_list"),
+        getMemory("model"),
+      );
+
+      setOfflineModels(models);
+    },
+    updateConversationFolder: (state, action) => {
+      const { id, folderId } = action.payload as { id: number; folderId: number | null };
+      const entry = state.history.find((item) => item.id === id);
+      if (entry) entry.folder_id = folderId;
+    },
+    reorderHistory: (state, action) => {
+      // ID-based reorder: move movedId to just before insertBeforeId.
+      // insertBeforeId === null means "move to end of the list".
+      const { movedId, insertBeforeId } = action.payload as {
+        movedId: number;
+        insertBeforeId: number | null;
+      };
+      const preflight = state.history.find((item) => item.id === -1);
+      const realItems = state.history.filter((item) => item.id !== -1);
+      const movedIdx = realItems.findIndex((item) => item.id === movedId);
+      if (movedIdx === -1) return;
+      const [moved] = realItems.splice(movedIdx, 1);
+      if (insertBeforeId === null) {
+        realItems.push(moved);
+      } else {
+        const beforeIdx = realItems.findIndex((item) => item.id === insertBeforeId);
+        realItems.splice(beforeIdx === -1 ? realItems.length : beforeIdx, 0, moved);
+      }
+      state.history = preflight ? [preflight, ...realItems] : realItems;
+    },
+  },
+});
+
+export const {
+  setHistory,
+  renameHistory,
+  updateHistoryAvatar,
+  setCurrent,
+  setModel,
+  setWeb,
+  toggleWeb,
+  setModelList,
+  addModelList,
+  removeModelList,
+  setCustomMasks,
+  setSupportModels,
+  setMaskItem,
+  clearMaskItem,
+  setMaskFolderId,
+  clearMaskFolderId,
+  fillMaskItem,
+  createMessage,
+  updateMessage,
+  removeMessage,
+  restartMessage,
+  editMessage,
+  stopMessage,
+  raiseConversation,
+  importConversation,
+  deleteConversation,
+  deleteAllConversation,
+  preflightHistory,
+  resetNewConversation,
+  removePreflight,
+  upgradePreflight,
+  updateConversationFolder,
+  reorderHistory,
+} = chatSlice.actions;
+export const selectHistory = (state: RootState): ConversationInstance[] =>
+  state.chat.history;
+export const selectConversations = (
+  state: RootState,
+): Record<number, ConversationSerialized> => state.chat.conversations;
+export const selectModel = (state: RootState): string => state.chat.model;
+export const selectWeb = (state: RootState): boolean => state.chat.web;
+export const selectCurrent = (state: RootState): number => state.chat.current;
+export const selectModelList = (state: RootState): string[] =>
+  state.chat.model_list;
+export const selectCustomMasks = (state: RootState): CustomMask[] =>
+  state.chat.custom_masks;
+export const selectSupportModels = (state: RootState): Model[] =>
+  state.chat.support_models;
+export const selectMaskItem = (state: RootState): Mask | null =>
+  state.chat.mask_item;
+export const selectMaskFolderId = (state: RootState): number | null =>
+  state.chat.mask_folder_id;
+
+export function useConversation(): ConversationSerialized | undefined {
+  const conversations = useSelector(selectConversations);
+  const current = useSelector(selectCurrent);
+
+  return useMemo(() => conversations[current], [conversations, current]);
+}
+
+export function useConversationActions() {
+  const dispatch = useDispatch();
+  const conversations = useSelector(selectConversations);
+  const current = useSelector(selectCurrent);
+  const mask = useSelector(selectMaskItem);
+
+  return {
+    toggle: async (id: number) => {
+      // For the preflight slot (id=-1) just switch current; never load from server
+      if (id !== -1) {
+        const conversation = conversations[id];
+        setNumberMemory("history_conversation", id);
+        if (!conversation) {
+          const data = await loadConversation(id);
+          const props: ConversationSerialized = {
+            model: data.model,
+            messages: data.message,
+          };
+          dispatch(importConversation({ conversation: props, id }));
+        }
+      }
+
+      // Do NOT clear the mask or remove the preflight entry here.
+      // The mask persists until the user sends a message (fillMaskItem) or
+      // explicitly exits mask mode via the + / Paintbrush button in the sidebar.
+
+      dispatch(setCurrent(id));
+    },
+    rename: async (id: number, name: string) => {
+      const resp = await doRenameConversation(id, name);
+      resp.status && dispatch(renameHistory({ id, name }));
+
+      return resp;
+    },
+    remove: async (id: number) => {
+      const state = await doDeleteConversation(id);
+      state && dispatch(deleteConversation(id));
+
+      return state;
+    },
+    removeAll: async () => {
+      const state = await doDeleteAllConversations();
+      state && dispatch(deleteAllConversation());
+
+      return state;
+    },
+    refresh: async () => {
+      const resp = await getConversationList();
+      dispatch(setHistory(resp));
+
+      return resp;
+    },
+    mask: (mask: Mask, folderId?: number) => {
+      dispatch(setMaskItem(mask));
+      dispatch(resetNewConversation());
+      dispatch(setCurrent(-1));
+      // Store the folder ID so send() and receive() can auto-assign the conversation
+      if (folderId != null) {
+        dispatch(setMaskFolderId(folderId));
+      } else {
+        dispatch(clearMaskFolderId());
+      }
+      // Do NOT add a preflight history entry here.
+      // The entry is deferred until the user actually sends the first message,
+      // which eliminates the flicker caused by the preflight → upgrade → rename cycle.
+      setNumberMemory("history_conversation", -1);
+    },
+    selected: (model?: string) => {
+      dispatch(setModel(model ?? ""));
+    },
+  };
+}
+
+export function useMessageActions() {
+  const { t } = useTranslation();
+  const dispatch = useDispatch();
+  const { refresh } = useConversationActions();
+  const current = useSelector(selectCurrent);
+  const conversations = useSelector(selectConversations);
+  const mask = useSelector(selectMaskItem);
+  const maskFolderId = useSelector(selectMaskFolderId);
+  const chatHistory = useSelector(selectHistory);
+
+  const model = useSelector(selectModel);
+  const web = useSelector(selectWeb);
+  const history = useSelector(historySelector);
+  const context = useSelector(contextSelector);
+  const max_tokens = useSelector(maxTokensSelector);
+  const temperature = useSelector(temperatureSelector);
+  const top_p = useSelector(topPSelector);
+  const top_k = useSelector(topKSelector);
+  const presence_penalty = useSelector(presencePenaltySelector);
+  const frequency_penalty = useSelector(frequencyPenaltySelector);
+  const repetition_penalty = useSelector(repetitionPenaltySelector);
+
+  return {
+    send: async (message: string, using_model?: string) => {
+      if (current === -1 && conversations[-1].messages.length === 0) {
+        // Deferred preflight: create the sidebar entry only on first send.
+        // For mask conversations use the preset name+avatar; for plain new chats use the message text.
+        const hasPreflight = chatHistory.some((item) => item.id === -1);
+        if (!hasPreflight) {
+          if (mask) {
+            dispatch(preflightHistory({
+              name: mask.name,
+              avatar: mask.avatar,
+              folder_id: maskFolderId ?? undefined,
+            }));
+          } else {
+            dispatch(preflightHistory({ name: message }));
+          }
+        }
+      }
+
+      if (!stack.hasConnection(current)) {
+        const conn = stack.createConnection(current);
+
+        if (current === -1 && mask && mask.context.length > 0) {
+          conn.sendMaskEvent(t, mask);
+          dispatch(fillMaskItem());
+        }
+      }
+
+      const state = stack.send(current, t, {
+        type: "chat",
+        message,
+        web,
+        model: using_model || model,
+        context: history,
+        ignore_context: !context,
+        max_tokens,
+        temperature,
+        top_p,
+        top_k,
+        presence_penalty,
+        frequency_penalty,
+        repetition_penalty,
+      });
+      if (!state) return false;
+
+      dispatch(
+        createMessage({ id: current, role: UserRole, content: message }),
+      );
+      dispatch(createMessage({ id: current, role: AssistantRole }));
+
+      return true;
+    },
+    stop: () => {
+      if (!stack.hasConnection(current)) return;
+      stack.sendStopEvent(current, t);
+      dispatch(stopMessage(current));
+    },
+    restart: () => {
+      if (!stack.hasConnection(current)) {
+        stack.createConnection(current);
+      }
+      stack.sendRestartEvent(current, t, {
+        web,
+        model,
+        context: history,
+        ignore_context: !context,
+        max_tokens,
+        temperature,
+        top_p,
+        top_k,
+        presence_penalty,
+        frequency_penalty,
+        repetition_penalty,
+        message: "",
+      });
+
+      // remove the last message if it's from assistant and create a new message
+      dispatch(restartMessage(current));
+    },
+    remove: (idx: number) => {
+      if (idx < 0 || idx >= conversations[current].messages.length) return;
+
+      dispatch(removeMessage({ id: current, idx }));
+
+      if (!stack.hasConnection(current)) stack.createConnection(current);
+      stack.sendRemoveEvent(current, t, idx);
+    },
+    edit: (idx: number, message: string) => {
+      if (idx < 0 || idx >= conversations[current].messages.length) return;
+
+      dispatch(editMessage({ id: current, idx, message }));
+      if (!stack.hasConnection(current)) stack.createConnection(current);
+      stack.sendEditEvent(current, t, idx, message);
+    },
+    receive: async (id: number, message: StreamMessage) => {
+      dispatch(updateMessage({ id, message }));
+
+      // raise conversation if it is -1
+      if (id === -1 && message.conversation) {
+        const target: number = message.conversation;
+
+        const preflightEntry = chatHistory.find((item) => item.id === -1);
+        const maskAvatar = preflightEntry?.avatar;
+
+        dispatch(raiseConversation(target));
+        setNumberMemory("history_conversation", target);
+        stack.raiseConnection(target);
+
+        if (maskAvatar) {
+          // Preset conversation: atomically promote the preflight entry to the
+          // real id (keeps emoji + preset name, zero flash).
+          dispatch(upgradePreflight(target));
+
+          // Auto-assign to the preset's folder if one was set
+          if (maskFolderId != null) {
+            moveConversation(target, maskFolderId); // fire-and-forget
+            dispatch(updateConversationFolder({ id: target, folderId: maskFolderId }));
+            dispatch(clearMaskFolderId());
+          }
+
+          refresh(); // fire-and-forget — no await, no flash
+        } else {
+          // Normal conversation: wait for the server list, then clean up.
+          await refresh();
+          dispatch(removePreflight());
+        }
+      }
+    },
+  };
+}
+
+export function listenMessageEvent() {
+  const actions = useMessageActions();
+
+  return (e: ConnectionEvent) => {
+    console.debug(`[conversation] receive event: ${e.event} (id: ${e.id})`);
+
+    switch (e.event) {
+      case "stop":
+        actions.stop();
+        break;
+      case "restart":
+        actions.restart();
+        break;
+      case "remove":
+        actions.remove(e.index ?? -1);
+        break;
+      case "edit":
+        actions.edit(e.index ?? -1, e.message ?? "");
+        break;
+    }
+  };
+}
+
+export function useMessages(): Message[] {
+  const conversations = useSelector(selectConversations);
+  const current = useSelector(selectCurrent);
+  const mask = useSelector(selectMaskItem);
+
+  return useMemo(() => {
+    const messages = conversations[current]?.messages || [];
+    const showMask = current === -1 && mask && messages.length === 0;
+    return !showMask ? messages : mask?.context;
+  }, [conversations, current, mask]);
+}
+
+export function useWorking(): boolean {
+  const messages = useMessages();
+
+  return useMemo(() => {
+    if (messages.length === 0) return false;
+
+    const last = messages[messages.length - 1];
+    if (last.role !== AssistantRole || last.end === undefined) return false;
+    return !last.end;
+  }, [messages]);
+}
+
+export const updateMasks = async (dispatch: AppDispatch) => {
+  const resp = await listMasks();
+  // Always sync the store — even when the list is empty (e.g. user deleted all masks)
+  if (resp.status) dispatch(setCustomMasks(resp.data || []));
+
+  return resp;
+};
+
+export const updateSupportModels = (dispatch: AppDispatch, models: Model[]) => {
+  dispatch(setSupportModels(loadPreferenceModels(models)));
+};
+
+export default chatSlice.reducer;

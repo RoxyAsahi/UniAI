@@ -1,0 +1,130 @@
+package connection
+
+import (
+	"chat/globals"
+	"database/sql"
+	"strings"
+)
+
+func validSqlError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	content := err.Error()
+
+	// Error 1060: Duplicate column name
+	// Error 1050: Table already exists
+
+	return !(strings.Contains(content, "Error 1060") || strings.Contains(content, "Error 1050"))
+}
+
+func checkSqlError(_ sql.Result, err error) error {
+	if validSqlError(err) {
+		return err
+	}
+
+	return nil
+}
+
+func execSql(db *sql.DB, sql string, args ...interface{}) error {
+	return checkSqlError(globals.ExecDb(db, sql, args...))
+}
+
+func doMigration(db *sql.DB) error {
+	if globals.SqliteEngine {
+		return doSqliteMigration(db)
+	}
+
+	// v3.10 migration
+
+	// update `quota`, `used` field in `quota` table
+	// migrate `DECIMAL(16, 4)` to `DECIMAL(24, 6)`
+
+	if err := execSql(db, `
+		ALTER TABLE quota
+		MODIFY COLUMN quota DECIMAL(24, 6),
+		MODIFY COLUMN used DECIMAL(24, 6);
+	`); err != nil {
+		return err
+	}
+
+	// add new field `is_banned` in `auth` table
+	if err := execSql(db, `
+		ALTER TABLE auth
+		ADD COLUMN is_banned BOOLEAN DEFAULT FALSE;
+	`); err != nil {
+		return err
+	}
+
+	// add new field `task_id` in `conversation` table to store task id (e.g., video job id)
+	if err := execSql(db, `
+		ALTER TABLE conversation
+		ADD COLUMN task_id VARCHAR(255) NULL;
+	`); err != nil {
+		return err
+	}
+
+	// add folder_id and folder_order fields for folder management
+	if err := execSql(db, `
+		ALTER TABLE conversation
+		ADD COLUMN folder_id INT NULL;
+	`); err != nil {
+		return err
+	}
+
+	if err := execSql(db, `
+		ALTER TABLE conversation
+		ADD COLUMN folder_order INT NOT NULL DEFAULT 0;
+	`); err != nil {
+		return err
+	}
+
+	// add avatar field to folders table for preset emoji support
+	if err := execSql(db, `
+		ALTER TABLE folders
+		ADD COLUMN avatar VARCHAR(100) NULL;
+	`); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func doSqliteMigration(db *sql.DB) error {
+	// v3.10 added sqlite support, no migration needed before this version
+
+	// v4 migration
+	// add new field `task_id` in `conversation` table to store task id (e.g., video job id)
+	if err := execSql(db, `
+		ALTER TABLE conversation
+		ADD COLUMN task_id VARCHAR(255) NULL;
+	`); err != nil {
+		return err
+	}
+
+	// add folder_id and folder_order fields for folder management
+	if err := execSql(db, `
+		ALTER TABLE conversation
+		ADD COLUMN folder_id INT NULL;
+	`); err != nil {
+		return err
+	}
+
+	if err := execSql(db, `
+		ALTER TABLE conversation
+		ADD COLUMN folder_order INT NOT NULL DEFAULT 0;
+	`); err != nil {
+		return err
+	}
+
+	// add avatar field to folders table for preset emoji support
+	if err := execSql(db, `
+		ALTER TABLE folders
+		ADD COLUMN avatar VARCHAR(100) NULL;
+	`); err != nil {
+		return err
+	}
+
+	return nil
+}
