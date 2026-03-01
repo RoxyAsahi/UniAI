@@ -1,23 +1,82 @@
 package auth
 
 import (
+	"fmt"
 	"chat/globals"
 	"chat/utils"
 	"database/sql"
 	"time"
 )
 
+type UserSettings struct {
+	AutoTitle bool   `json:"auto_title"`
+	AutoModel string `json:"auto_model"`
+}
+
 type User struct {
-	ID           int64      `json:"id"`
-	Username     string     `json:"username"`
-	Email        string     `json:"email"`
-	BindID       int64      `json:"bind_id"`
-	Password     string     `json:"password"`
-	Token        string     `json:"token"`
-	Admin        bool       `json:"is_admin"`
-	Level        int        `json:"level"`
-	Subscription *time.Time `json:"subscription"`
-	Banned       bool       `json:"is_banned"`
+	ID           int64         `json:"id"`
+	Username     string        `json:"username"`
+	Email        string        `json:"email"`
+	BindID       int64         `json:"bind_id"`
+	Password     string        `json:"password"`
+	Token        string        `json:"token"`
+	Admin        bool          `json:"is_admin"`
+	Level        int           `json:"level"`
+	Subscription *time.Time    `json:"subscription"`
+	Banned       bool          `json:"is_banned"`
+	Settings     *UserSettings `json:"settings"`
+}
+
+func (u *User) GetSettings(db *sql.DB) *UserSettings {
+	if u.Settings != nil {
+		return u.Settings
+	}
+
+	uid := u.GetID(db)
+	if uid <= 0 {
+		u.Settings = &UserSettings{AutoTitle: true}
+		return u.Settings
+	}
+
+	var data sql.NullString
+	if err := globals.QueryRowDb(db, "SELECT auto_title FROM auth WHERE id = ?", uid).Scan(&data); err != nil {
+		u.Settings = &UserSettings{AutoTitle: true}
+		return u.Settings
+	}
+
+	if data.Valid && len(data.String) > 0 {
+		if settings, err := utils.UnmarshalString[UserSettings](data.String); err == nil {
+			u.Settings = &settings
+			return &settings
+		}
+	}
+
+	u.Settings = &UserSettings{AutoTitle: true}
+	return u.Settings
+}
+
+func (u *User) UpdateSettings(db *sql.DB, settings *UserSettings) error {
+	uid := u.GetID(db)
+	if uid <= 0 {
+		return fmt.Errorf("user not found")
+	}
+
+	data := utils.ToJson(settings)
+	result, err := globals.ExecDb(db, "UPDATE auth SET auto_title = ? WHERE id = ?", data, uid)
+	if err != nil {
+		return err
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return fmt.Errorf("user not found")
+	}
+
+	u.Settings = settings
+	return nil
 }
 
 type UserInfo struct {
@@ -30,10 +89,23 @@ type UserInfo struct {
 
 func GetUserById(db *sql.DB, id int64) *User {
 	var user User
-	if err := globals.QueryRowDb(db, "SELECT id, username FROM auth WHERE id = ?", id).Scan(&user.ID, &user.Username); err != nil {
+	if err := globals.QueryRowDb(db, `
+		SELECT
+			auth.id,
+			auth.username,
+			COALESCE(subscription.level, 1) AS level,
+			auth.is_admin
+		FROM auth
+		LEFT JOIN subscription ON subscription.user_id = auth.id
+		WHERE auth.id = ?
+	`, id).Scan(&user.ID, &user.Username, &user.Level, &user.Admin); err != nil {
 		return nil
 	}
 	return &user
+}
+
+func (u *User) GetGroup(db *sql.DB) string {
+	return GetGroup(db, u)
 }
 
 func GetUserByName(db *sql.DB, username string) *User {

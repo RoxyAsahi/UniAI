@@ -10,29 +10,37 @@ export interface ClickableProps
   hoverScale?: number;
 }
 
-const Clickable: React.FC<ClickableProps> = ({
-  children,
-  className,
-  tapScale = 0.95,
-  tapDuration = 0.1,
-  hoverScale,
-  onClick,
-}) => {
-  return (
-    <motion.div
-      className={cn("cursor-pointer", className)}
-      whileTap={{
-        scale: tapScale,
-        transition: { duration: tapDuration },
-      }}
-      whileHover={hoverScale ? { scale: hoverScale } : {}}
-      whileFocus={hoverScale ? { scale: hoverScale } : {}}
-      onClick={onClick}
-    >
-      {children}
-    </motion.div>
-  );
-};
+const Clickable = React.forwardRef<HTMLDivElement, ClickableProps>(
+  (
+    {
+      children,
+      className,
+      tapScale = 0.95,
+      tapDuration = 0.1,
+      hoverScale,
+      onClick,
+      ...props
+    },
+    ref,
+  ) => {
+    return (
+      <motion.div
+        ref={ref}
+        className={cn("cursor-pointer", className)}
+        whileTap={{
+          scale: tapScale,
+          transition: { duration: tapDuration },
+        }}
+        whileHover={hoverScale ? { scale: hoverScale } : {}}
+        whileFocus={hoverScale ? { scale: hoverScale } : {}}
+        onClick={onClick}
+        {...props}
+      >
+        {children}
+      </motion.div>
+    );
+  },
+);
 
 Clickable.displayName = "Clickable";
 export default Clickable;

@@ -42,10 +42,14 @@ import Github from "@/components/ui/icons/Github.tsx";
 import { isTauri } from "@/utils/desktop.ts";
 import { useDeeptrain } from "@/conf/env.ts";
 import ThemeToggle from "@/components/ThemeProvider.tsx";
+import { Switch } from "@/components/ui/switch.tsx";
+import { selectSupportModels } from "@/store/chat.ts";
+import { Combobox } from "@/components/ui/combo-box.tsx";
+import { AppDispatch } from "@/store";
 
 function SettingsDialog() {
   const { t, i18n } = useTranslation();
-  const dispatch = useDispatch();
+  const dispatch: AppDispatch = useDispatch();
 
   const open = useSelector(settings.dialogSelector);
 
@@ -64,9 +68,19 @@ function SettingsDialog() {
   const frequencyPenalty = useSelector(settings.frequencyPenaltySelector);
   const repetitionPenalty = useSelector(settings.repetitionPenaltySelector);
 
+  const autoTitle = useSelector(settings.autoTitleSelector);
+  const autoModel = useSelector(settings.autoModelSelector);
+  const supportModels = useSelector(selectSupportModels);
+
   const [memorySize, setMemorySize] = useState(getMemoryPerformance());
 
   const desktop = isTauri();
+
+  useEffect(() => {
+    if (open) {
+      settings.fetchUserSettings(dispatch);
+    }
+  }, [open]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -130,6 +144,46 @@ function SettingsDialog() {
                       </Select>
                     </div>
                   </div>
+                </div>
+                <div className={`settings-segment`}>
+                  <div className={`item`}>
+                    <div className={`name`}>
+                      {t("admin.system.autoTitle.enabled")}
+                    </div>
+                    <div className={`grow`} />
+                    <Switch
+                      checked={autoTitle}
+                      onCheckedChange={(value) => {
+                        dispatch(settings.setAutoTitle(value));
+                        settings.saveUserSettingsAction({
+                          auto_title: value,
+                          auto_model: autoModel,
+                        });
+                      }}
+                    />
+                  </div>
+                  {autoTitle && (
+                    <div className={`item`}>
+                      <div className={`name`}>
+                        {t("admin.system.autoTitle.model")}
+                      </div>
+                      <div className={`grow`} />
+                      <Combobox
+                        value={autoModel}
+                        onChange={(value) => {
+                          dispatch(settings.setAutoModel(value));
+                          settings.saveUserSettingsAction({
+                            auto_title: autoTitle,
+                            auto_model: value,
+                          });
+                        }}
+                        list={supportModels.map((m) => m.id)}
+                        placeholder={t(
+                          "admin.system.autoTitle.modelPlaceholder",
+                        )}
+                      />
+                    </div>
+                  )}
                 </div>
                 <div className={`settings-segment`}>
                   <div className={`item`}>

@@ -35,6 +35,7 @@ type ApiInfo struct {
 	Generation   []string       `json:"generation"`
 	RelayPlan    bool           `json:"relay_plan"`
 	LogoText     *logoTextState `json:"logo_text"`
+	AutoTitle    autoTitleState `json:"auto_title"`
 }
 
 type generalState struct {
@@ -95,12 +96,22 @@ type commonState struct {
 	PromptStore bool     `json:"prompt_store" mapstructure:"promptstore"`
 }
 
+type autoTitleState struct {
+	Enabled   bool   `json:"enabled" mapstructure:"enabled"`
+	Model     string `json:"model" mapstructure:"model"`
+	MaxLen    int    `json:"max_len" mapstructure:"maxlen"`
+	MinMsgs   int    `json:"min_msgs" mapstructure:"minmsgs"`
+	Overwrite bool   `json:"overwrite" mapstructure:"overwrite"`
+	Prompt    string `json:"prompt" mapstructure:"prompt"`
+}
+
 type SystemConfig struct {
-	General generalState `json:"general" mapstructure:"general"`
-	Site    siteState    `json:"site" mapstructure:"site"`
-	Mail    mailState    `json:"mail" mapstructure:"mail"`
-	Search  SearchState  `json:"search" mapstructure:"search"`
-	Common  commonState  `json:"common" mapstructure:"common"`
+	General   generalState   `json:"general" mapstructure:"general"`
+	Site      siteState      `json:"site" mapstructure:"site"`
+	Mail      mailState      `json:"mail" mapstructure:"mail"`
+	Search    SearchState    `json:"search" mapstructure:"search"`
+	Common    commonState    `json:"common" mapstructure:"common"`
+	AutoTitle autoTitleState `json:"auto_title" mapstructure:"autotitle"`
 }
 
 func NewSystemConfig() *SystemConfig {
@@ -140,6 +151,13 @@ func (c *SystemConfig) Load() {
 	globals.SearchEngines = c.GetSearchEngines()
 	globals.SearchImageProxy = c.GetImageProxy()
 	globals.SearchSafeSearch = c.Search.SafeSearch
+
+	if c.AutoTitle.MaxLen <= 0 {
+		c.AutoTitle.MaxLen = 50
+	}
+	if c.AutoTitle.MinMsgs <= 0 {
+		c.AutoTitle.MinMsgs = 2
+	}
 }
 
 func (c *SystemConfig) SaveConfig() error {
@@ -165,6 +183,7 @@ func (c *SystemConfig) AsInfo() ApiInfo {
 		Generation:   c.Common.Generation,
 		RelayPlan:    c.Site.RelayPlan,
 		LogoText:     c.General.LogoText,
+		AutoTitle:    c.AutoTitle,
 	}
 }
 
@@ -174,6 +193,7 @@ func (c *SystemConfig) UpdateConfig(data *SystemConfig) error {
 	c.Mail = data.Mail
 	c.Search = data.Search
 	c.Common = data.Common
+	c.AutoTitle = data.AutoTitle
 
 	utils.ApplySeo(c.General.Title, c.General.Logo)
 	utils.ApplyPWAManifest(c.General.PWAManifest)
@@ -319,4 +339,28 @@ func (c *SystemConfig) AcceptImageStore() bool {
 
 func (c *SystemConfig) SupportRelayPlan() bool {
 	return c.Site.RelayPlan
+}
+
+func (c *SystemConfig) GetAutoTitleEnabled() bool {
+	return c.AutoTitle.Enabled
+}
+
+func (c *SystemConfig) GetAutoTitleModel() string {
+	return c.AutoTitle.Model
+}
+
+func (c *SystemConfig) GetAutoTitleMaxLen() int {
+	return c.AutoTitle.MaxLen
+}
+
+func (c *SystemConfig) GetAutoTitleMinMsgs() int {
+	return c.AutoTitle.MinMsgs
+}
+
+func (c *SystemConfig) GetAutoTitleOverwrite() bool {
+	return c.AutoTitle.Overwrite
+}
+
+func (c *SystemConfig) GetAutoTitlePrompt() string {
+	return c.AutoTitle.Prompt
 }

@@ -215,6 +215,12 @@ const chatSlice = createSlice({
       if (message.quota) instance.quota = message.quota;
       if (message.end) instance.end = message.end;
       instance.plan = message.plan;
+
+      const entry = state.history.find((item) => item.id === id);
+      if (entry) {
+        if (message.title) entry.name = message.title;
+        if (message.titling !== undefined) entry.titling = message.titling;
+      }
     },
     removeMessage: (state, action) => {
       const { id, idx } = action.payload as { id: number; idx: number };
@@ -260,6 +266,10 @@ const chatSlice = createSlice({
 
       state.conversations[id] = conversation;
       if (state.current === -1) state.current = id;
+
+      // Update history synchronously to prevent race condition with titling events
+      const entry = state.history.find((item) => item.id === -1);
+      if (entry) entry.id = id;
 
       state.conversations[-1] = { ...defaultConversation };
     },

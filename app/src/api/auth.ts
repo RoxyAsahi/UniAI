@@ -2,6 +2,7 @@ import axios from "axios";
 import { getErrorMessage } from "@/utils/base.ts";
 import { isEmailValid } from "@/utils/form.ts";
 import { toast } from "sonner";
+import { CommonResponse } from "@/api/common.ts";
 
 export type LoginForm = {
   username: string;
@@ -157,6 +158,42 @@ export const initialUserInfo: UserInfo = {
   plan_total_month: 0,
   email: "",
 };
+
+export type UserSettings = {
+  auto_title: boolean;
+  auto_model: string;
+};
+
+export type UserSettingsResponse = {
+  status: boolean;
+  data: UserSettings;
+};
+
+export async function getUserSettings(): Promise<UserSettingsResponse> {
+  try {
+    const response = await axios.get("/user/settings");
+    return response.data as UserSettingsResponse;
+  } catch (e) {
+    return {
+      status: false,
+      data: { auto_title: true, auto_model: "" },
+    };
+  }
+}
+
+export async function saveUserSettings(
+  data: UserSettings,
+): Promise<CommonResponse> {
+  try {
+    const response = await axios.post("/user/settings", data);
+    return response.data as CommonResponse;
+  } catch (e) {
+    return {
+      status: false,
+      error: getErrorMessage(e),
+    };
+  }
+}
 
 export async function getUserInfo(): Promise<UserInfoResponse> {
   try {

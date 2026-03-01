@@ -300,7 +300,7 @@ export const initialSystemState: SystemProps = {
     enabled: false,
     model: "",
     max_len: 50,
-    min_msgs: 6,
+    min_msgs: 2,
     overwrite: false,
     prompt: "",
   },
@@ -390,14 +390,14 @@ export async function getConfig(): Promise<SystemResponse> {
         enabled: false,
         model: "",
         max_len: 50,
-        min_msgs: 6,
+        min_msgs: 2,
         overwrite: false,
         prompt: "",
       });
       at.enabled = !!at.enabled;
       at.model = at.model || "";
       at.max_len = typeof at.max_len === "number" && at.max_len > 0 ? at.max_len : 50;
-      at.min_msgs = typeof at.min_msgs === "number" && at.min_msgs > 0 ? at.min_msgs : 6;
+      at.min_msgs = typeof at.min_msgs === "number" && at.min_msgs > 0 ? at.min_msgs : 2;
       at.overwrite = !!at.overwrite;
       at.prompt = at.prompt || "";
     }

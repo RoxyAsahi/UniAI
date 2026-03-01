@@ -25,6 +25,7 @@ import { useMemo, useReducer, useState } from "react";
 import { formReducer } from "@/utils/form.ts";
 import { NumberInput } from "@/components/ui/number-input.tsx";
 import {
+  AutoTitleState,
   CommonState,
   commonWhiteList,
   GeneralState,
@@ -1220,6 +1221,102 @@ function Search({ data, dispatch, onChange }: CompProps<SearchState>) {
   );
 }
 
+function AutoTitle({ data, dispatch, onChange }: CompProps<AutoTitleState>) {
+  const { t } = useTranslation();
+  const supportModels = useSelector(selectSupportModels);
+
+  return (
+    <Paragraph
+      title={t("admin.system.autoTitle.title")}
+      configParagraph={true}
+      isCollapsed={true}
+    >
+      <ParagraphDescription border>
+        {t("admin.system.autoTitle.tip")}
+      </ParagraphDescription>
+      <ParagraphItem>
+        <Label>{t("admin.system.autoTitle.enabled")}</Label>
+        <Switch
+          checked={data.enabled}
+          onCheckedChange={(value) => {
+            dispatch({ type: "update:auto_title.enabled", value });
+          }}
+        />
+      </ParagraphItem>
+      {data.enabled && (
+        <>
+          <ParagraphItem>
+            <Label>{t("admin.system.autoTitle.model")}</Label>
+            <Combobox
+              value={data.model}
+              onChange={(value) => {
+                dispatch({ type: "update:auto_title.model", value });
+              }}
+              list={supportModels.map((m) => m.id)}
+              placeholder={t("admin.system.autoTitle.modelPlaceholder")}
+            />
+          </ParagraphItem>
+          <ParagraphItem>
+            <Label>{t("admin.system.autoTitle.maxLen")}</Label>
+            <NumberInput
+              value={data.max_len}
+              onChange={(value) =>
+                dispatch({ type: "update:auto_title.max_len", value })
+              }
+              min={5}
+              max={100}
+            />
+          </ParagraphItem>
+          <ParagraphItem>
+            <Label>{t("admin.system.autoTitle.minMsgs")}</Label>
+            <NumberInput
+              value={data.min_msgs}
+              onChange={(value) =>
+                dispatch({ type: "update:auto_title.min_msgs", value })
+              }
+              min={1}
+              max={20}
+            />
+          </ParagraphItem>
+          <ParagraphItem>
+            <Label>{t("admin.system.autoTitle.overwrite")}</Label>
+            <Switch
+              checked={data.overwrite}
+              onCheckedChange={(value) => {
+                dispatch({ type: "update:auto_title.overwrite", value });
+              }}
+            />
+          </ParagraphItem>
+          <ParagraphItem rowLayout={true}>
+            <Label>{t("admin.system.autoTitle.prompt")}</Label>
+            <FlexibleTextarea
+              value={data.prompt}
+              rows={6}
+              onChange={(e) =>
+                dispatch({
+                  type: "update:auto_title.prompt",
+                  value: e.target.value,
+                })
+              }
+              placeholder={t("admin.system.autoTitle.promptPlaceholder")}
+            />
+          </ParagraphItem>
+        </>
+      )}
+      <ParagraphFooter>
+        <div className={`grow`} />
+        <Button
+          size={`sm`}
+          loading={true}
+          onClick={async () => await onChange()}
+        >
+          {t("admin.system.save")}
+        </Button>
+      </ParagraphFooter>
+    </Paragraph>
+  );
+}
+
 function System() {
   const { t } = useTranslation();
   const [data, setData] = useReducer(
@@ -1295,6 +1392,12 @@ function System() {
           <Search
             form={data}
             data={data.search}
+            dispatch={setData}
+            onChange={doSaving}
+          />
+          <AutoTitle
+            form={data}
+            data={data.auto_title}
             dispatch={setData}
             onChange={doSaving}
           />

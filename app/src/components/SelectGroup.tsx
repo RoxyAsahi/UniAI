@@ -89,7 +89,7 @@ export function SingleGroupSelectItemBadge(props: SingleSelectItemBadgeProps) {
 
 function GroupSelectItemBadge(props: { data: SelectItemBadgeProps }) {
   return Array.isArray(props.data) ? (
-    props.data.map((badge) => <SingleGroupSelectItemBadge {...badge} />)
+    props.data.map((badge, idx) => <SingleGroupSelectItemBadge key={idx} {...badge} />)
   ) : (
     <SingleGroupSelectItemBadge {...props.data} />
   );

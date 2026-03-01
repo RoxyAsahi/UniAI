@@ -263,7 +263,8 @@ function SidebarConversationList({
 
   const filteredHistory = useMemo(() => {
     // Exclude conversations that belong to a folder — they're shown inside FolderTree
-    const noFolder = history.filter((c) => c.id > 0 && !c.folder_id);
+    // Also include -1 (temporary conversation) to show loading state correctly
+    const noFolder = history.filter((c) => (c.id > 0 || c.id === -1) && !c.folder_id);
     if (search.trim().length === 0) return noFolder;
 
     const searchItems = search
@@ -323,7 +324,7 @@ function SidebarConversationList({
             {filteredHistory.length ? (
               filteredHistory.map((conversation, i) => (
                 <Draggable
-                  key={conversation.clientKey ?? String(conversation.id)}
+                  key={conversation.clientKey ?? `conv-${conversation.id}`}
                   draggableId={String(conversation.id)}
                   index={i}
                 >

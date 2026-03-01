@@ -142,6 +142,8 @@ func CreateUserTable(db *sql.DB) {
 		fmt.Println(err)
 	}
 
+	_, _ = globals.ExecDb(db, "ALTER TABLE auth ADD COLUMN auto_title TEXT")
+
 	InitRootUser(db)
 }
 

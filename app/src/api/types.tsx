@@ -101,6 +101,7 @@ export type ConversationInstance = {
   avatar?: string;
   folder_id?: number | null;
   folder_order?: number;
+  titling?: boolean;
   /** Stable client-side key that never changes even when a preflight entry is
    *  promoted to a real conversation id. Used as the React key in lists so that
    *  AnimatePresence does not play exit/enter animations during the upgrade. */

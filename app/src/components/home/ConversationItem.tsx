@@ -87,7 +87,11 @@ function ConversationItem({
         setOpen(true);
       }}
     >
-      {conversation.avatar ? (
+      {conversation.titling ? (
+        <div className={`h-6 w-6 flex items-center justify-center mr-1 text-base shrink-0`}>
+          <Loader2 className={`h-4 w-4 animate-spin text-secondary`} />
+        </div>
+      ) : conversation.avatar ? (
         <div className={`h-6 w-6 flex items-center justify-center mr-1 text-base shrink-0`}>
           <Emoji emoji={conversation.avatar} />
         </div>
@@ -106,6 +110,7 @@ function ConversationItem({
       >
         <DropdownMenuTrigger
           className={`flex flex-row outline-none`}
+          asChild
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();

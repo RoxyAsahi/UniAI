@@ -1505,3 +1505,183 @@ const isDragOver = dragOverFolderId === folder.id;
 | 点击"颜色"菜单项 | 右侧弹出颜色选择器，选色后立即更新文件夹图标颜色 |
 | 点击"重命名" | 输入框聚焦，显示 ✓ / ✕ 按钮，Enter 保存，Escape 取消 |
 | 创建/重命名/删除文件夹 | 操作成功/失败均有 Toast 提示 |
+
+---
+
+## 自动标题功能稳定性修复（2026-03-02）
+
+### 背景
+
+自动标题功能已接入异步任务 + 侧边栏加载反馈，但在联调中出现了多类阻断问题：
+
+1. 个人设置里的“标题模型”看起来可选，但重新打开设置后会回空。
+2. 自动标题链路出现 `cannot find user`。
+3. 自动标题链路出现 `cannot find channel for model`。
+4. 使用 OpenAI-Compatible 网关转 Gemini 时，自动标题出现 `contents is not specified`。
+5. 会话标题流程出现“首句截取 -> New Chat -> AI 标题”的中间闪回。
+
+---
+
+### 问题定位与修复
+
+#### 1) 用户设置读写未命中真实用户（持久化失败）
+
+**症状**
+
+- 设置弹窗中选了 `auto_model`，再次打开又变空。
+- 后端始终走系统默认自动标题模型。
+
+**原因**
+
+- `/user/settings` 使用 `GetUserByCtx` 拿到的 `User` 仅含 `Username`；
+- `GetSettings/UpdateSettings` 直接按 `u.ID` 查询/更新，`u.ID` 可能为 `0`，导致读取空值或更新 0 行。
+
+**修复**
+
+- `GetSettings/UpdateSettings` 统一先 `u.GetID(db)` 再读写；
+- `UpdateSettings` 增加 `RowsAffected` 检查，0 行时返回错误；
+- 前端将 `user/settings` 改为绝对路径 `/user/settings`；
+- 前端保存用户设置时增加失败日志，不再静默失败。
+
+#### 2) 自动标题任务用户查询失败（cannot find user）
+
+**症状**
+
+- 日志出现 `[auto-title] cannot find user ...`，任务提前退出。
+
+**原因**
+
+- `GetUserById` 查询 `auth.level`，而该列不在 `auth` 表中。
+
+**修复**
+
+- 改为 `auth LEFT JOIN subscription`，读取 `COALESCE(subscription.level, 1)`。
+
+#### 3) 自动标题请求模型路由参数缺失（cannot find channel for model）
+
+**症状**
+
+- 自动标题模型明明可用，但标题任务报找不到通道。
+
+**原因**
+
+- 自动标题调用 `NewChatRequest` 时未设置 `OriginalModel`；
+- 通道匹配依赖 `OriginalModel`，导致按空模型查路由。
+
+**修复**
+
+- 自动标题请求显式设置：`OriginalModel = targetModel`。
+
+#### 4) OpenAI-Compatible + Gemini 网关兼容性（contents is not specified）
+
+**症状**
+
+- 标题任务重试后仍失败：`contents is not specified`。
+
+**原因**
+
+- 自动标题请求仅发送 `system` 消息；
+- 通过 OpenAI-Compatible 网关转 Gemini 时，部分网关仅将 `user/assistant` 映射为 `contents`，导致上游请求体 `contents` 为空。
+
+**修复**
+
+- 自动标题 prompt 消息角色由 `system` 调整为 `user`，保证 `contents` 非空。
+
+#### 5) 标题流程优化（去掉中间 New Chat）
+
+**目标流程**
+
+- 首发消息后：显示首句截取标题；
+- 首次 AI 回复后：升级为 AI 自动标题；
+- 不再出现中间 `New Chat`。
+
+**修复**
+
+- `HandleMessage/HandleMessageFromByte`：首条消息始终使用首句截取作为初始标题；
+- 自动标题任务在 `overwrite=false` 时，允许“首句截取标题”被 AI 覆盖（不再被误判为“用户已命名”）。
+
+---
+
+### 补充容错
+
+- 自动标题模型请求失败或空响应时，若当前不是会话模型，会自动回退到当前会话模型再尝试一次。
+
+---
+
+### 修改文件汇总
+
+| 文件 | 修改内容 |
+|------|---------|
+| `auth/struct.go` | 修复 `GetUserById` 查询；修复 `GetSettings/UpdateSettings` 的用户 ID 获取与更新结果校验 |
+| `app/src/api/auth.ts` | `user/settings` 改为绝对路径 `/user/settings` |
+| `app/src/store/settings.ts` | 保存用户设置失败时输出告警日志 |
+| `manager/task.go` | 自动标题请求设置 `OriginalModel`；消息角色改为 `user`；模型失败回退；首句截取标题可覆盖逻辑 |
+| `manager/conversation/conversation.go` | 首条消息初始标题改为首句截取，不再中间回写 `new chat` |
+
+---
+
+### 当前行为（预期）
+
+1. 个人设置中选择的自动标题模型可持久化，重新打开设置不再回空。
+2. 自动标题任务可正确识别用户、模型与通道。
+3. OpenAI-Compatible（转 Gemini）场景下，自动标题请求可正常生成。
+4. 侧边栏标题流程为：`首句截取 -> AI 标题`（无 `New Chat` 闪回）。
+
+---
+
+## 2026-03-02 — 本地控制台报错清理（Ref / Service Worker / KaTeX / Subscription）
+
+### 问题背景
+
+本地开发环境控制台出现多类报错与噪音日志：
+
+1. `Function components cannot be given refs`（`SlotClone` 链路）。
+2. `service.js: Failed to fetch` + `FetchEvent ... promise was rejected`。
+3. KaTeX 字体从 `bootcdn` 拉取失败（大量 `net::ERR_FAILED`）。
+4. 订阅状态日志出现 `1970-01-01` 与异常负数天数。
+
+---
+
+### 修复内容
+
+#### 1) `ChatAction` 支持 `forwardRef`
+
+- 文件：`app/src/components/home/assemblies/ChatAction.tsx`
+- 将 `ChatAction` 从普通函数组件改为 `React.forwardRef<HTMLButtonElement, ...>`，并把 `ref` 透传给内部 `Button`。
+- 解决 `DialogTrigger/PopoverTrigger` 等 `asChild` 场景下 Radix `SlotClone` 传 `ref` 的 React 警告。
+
+#### 2) Service Worker 在开发环境降噪 + fetch 兜底
+
+- 文件：`app/public/workbox.js`
+- 在 `localhost / 127.0.0.1 / [::1]` 下不注册 SW，并在页面加载时注销已有注册。
+
+- 文件：`app/public/service.js`
+- `fetch` 事件仅处理同源 `GET` 请求；
+- 缓存未命中后 `fetch` 失败时返回兜底 `Response(504)`，避免未处理 Promise rejection 刷屏。
+
+#### 3) KaTeX 字体改为本地包，不再依赖外链 CDN
+
+- 文件：`app/src/components/Markdown.tsx`
+- 新增 `import "katex/dist/katex.min.css";`
+
+- 文件：`app/src/assets/fonts/all.less`
+- 移除 `@import "katex";`（原先该文件通过 bootcdn 外链字体）。
+
+- 依赖：
+  - `app/package.json` 新增 `katex: 0.16.9`
+  - `app/pnpm-lock.yaml` 同步更新
+
+#### 4) 订阅接口分支返回与过期天数兜底
+
+- 文件：`auth/controller.go`
+- `disableSubscription()` 分支 `c.JSON(...)` 后补 `return`，避免同一次请求重复写响应。
+
+- 文件：`auth/subscription.go`
+- `GetSubscriptionExpiredDay` 在未订阅时直接返回 `0`，避免返回超大负数天数。
+
+---
+
+### 验证结果
+
+1. `go test ./auth/...` 通过。
+2. 前端 `pnpm build` 未通过，但失败项为项目已存在 TypeScript 问题（如 `FolderItem.tsx`、`System.tsx`、`store/chat.ts` 等），非本次改动引入。

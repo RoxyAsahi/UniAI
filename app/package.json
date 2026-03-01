@@ -52,6 +52,7 @@
     "framer-motion": "^11.3.28",
     "html-to-image": "^1.11.11",
     "i18next": "^23.4.6",
+    "katex": "0.16.9",
     "localforage": "^1.10.0",
     "lucide-react": "^0.483.0",
     "match-sorter": "^6.3.1",

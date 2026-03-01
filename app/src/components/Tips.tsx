@@ -32,95 +32,102 @@ type TipsProps = {
   asChild?: boolean;
 };
 
-function Tips({
-  content,
-  align,
-  side,
-  trigger,
-  children,
-  className,
-  classNameTrigger,
-  classNamePopup,
-  hideTimeout,
-  notHide,
-  open,
-  onOpenChange,
-  onClicked,
-  asChild,
-}: TipsProps) {
-  const timeout = hideTimeout ?? 2500;
-  const comp = useMemo(
-    () => (
-      <>
-        {content && <p className={`text-center`}>{content}</p>}
-        {children}
-      </>
-    ),
-    [content, children],
-  );
+const Tips = React.forwardRef<HTMLButtonElement, TipsProps>(
+  (
+    {
+      content,
+      align,
+      side,
+      trigger,
+      children,
+      className,
+      classNameTrigger,
+      classNamePopup,
+      hideTimeout,
+      notHide,
+      open,
+      onOpenChange,
+      onClicked,
+      asChild,
+    },
+    ref,
+  ) => {
+    const timeout = hideTimeout ?? 2500;
+    const comp = useMemo(
+      () => (
+        <>
+          {content && <p className={`text-center`}>{content}</p>}
+          {children}
+        </>
+      ),
+      [content, children],
+    );
 
-  const [drop, setDrop] = onOpenChange
-    ? [open, onOpenChange]
-    : React.useState(false);
-  const [tooltip, setTooltip] = React.useState(false);
+    const [drop, setDrop] = onOpenChange
+      ? [open, onOpenChange]
+      : React.useState(false);
+    const [tooltip, setTooltip] = React.useState(false);
 
-  const task = useRef<NodeJS.Timeout>();
+    const task = useRef<NodeJS.Timeout>();
 
-  useEffect(() => {
-    if (notHide) return;
-    drop
-      ? (task.current = setTimeout(() => setDrop(false), timeout))
-      : clearTimeout(task.current);
-  }, [drop]);
+    useEffect(() => {
+      if (notHide) return;
+      drop
+        ? (task.current = setTimeout(() => setDrop(false), timeout))
+        : clearTimeout(task.current);
+    }, [drop]);
 
-  useEffect(() => {
-    if (!tooltip) return;
+    useEffect(() => {
+      if (!tooltip) return;
 
-    setTooltip(false);
-    !drop && setDrop(true);
-  }, [drop, tooltip]);
+      setTooltip(false);
+      !drop && setDrop(true);
+    }, [drop, tooltip]);
 
-  return (
-    <DropdownMenu
-      open={drop}
-      onOpenChange={(open) => {
-        setDrop(open);
-        open && onClicked && onClicked();
-      }}
-    >
-      <DropdownMenuTrigger
-        asChild={asChild}
-        className={cn(
-          `tips-trigger select-none outline-none`,
-          classNameTrigger,
-        )}
-        onClick={onClicked}
+    return (
+      <DropdownMenu
+        open={drop}
+        onOpenChange={(open) => {
+          setDrop(open);
+          open && onClicked && onClicked();
+        }}
       >
-        <TooltipProvider>
-          <Tooltip open={tooltip} onOpenChange={setTooltip}>
-            <TooltipTrigger asChild>
-              <Clickable>
-                {trigger ?? (
-                  <HelpCircle className={cn("tips-icon", className)} />
-                )}
-              </Clickable>
-            </TooltipTrigger>
-            <TooltipContent className="hidden" />
-          </Tooltip>
-        </TooltipProvider>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        className={cn(
-          "px-3 py-1.5 cursor-pointer text-sm min-w-0 max-w-[90vw]",
-          classNamePopup,
-        )}
-        side={side ?? "top"}
-        align={align}
-      >
-        {comp}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
+        <DropdownMenuTrigger
+          asChild={asChild}
+          className={cn(
+            `tips-trigger select-none outline-none`,
+            classNameTrigger,
+          )}
+          onClick={onClicked}
+          ref={ref}
+        >
+          <TooltipProvider>
+            <Tooltip open={tooltip} onOpenChange={setTooltip}>
+              <TooltipTrigger asChild>
+                <Clickable>
+                  {trigger ?? (
+                    <HelpCircle className={cn("tips-icon", className)} />
+                  )}
+                </Clickable>
+              </TooltipTrigger>
+              <TooltipContent className="hidden" />
+            </Tooltip>
+          </TooltipProvider>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          className={cn(
+            "px-3 py-1.5 cursor-pointer text-sm min-w-0 max-w-[90vw]",
+            classNamePopup,
+          )}
+          side={side ?? "top"}
+          align={align}
+        >
+          {comp}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  },
+);
 
+Tips.displayName = "Tips";
 export default Tips;

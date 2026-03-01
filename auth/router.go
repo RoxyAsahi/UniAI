@@ -11,6 +11,11 @@ func Register(app *gin.RouterGroup) {
 	app.POST("/state", StateAPI)
 	app.GET("/apikey", KeyAPI)
 	app.GET("/userinfo", UserInfoAPI)
+	user := app.Group("/user")
+	{
+		user.GET("/settings", GetSettingsAPI)
+		user.POST("/settings", UpdateSettingsAPI)
+	}
 	app.POST("/resetkey", ResetKeyAPI)
 	app.GET("/package", PackageAPI)
 	app.GET("/quota", QuotaAPI)

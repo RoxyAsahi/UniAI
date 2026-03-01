@@ -7,8 +7,11 @@ import {
 } from "@/utils/memory.ts";
 import { RootState } from "@/store/index.ts";
 import { isMobile } from "@/utils/device.ts";
+import { AppDispatch } from "@/store/index.ts";
+import { getUserSettings, saveUserSettings, UserSettings } from "@/api/auth.ts";
 
 export const sendKeys = ["Ctrl + Enter", "Enter"];
+
 export const initialSettings = {
   context: true,
   align: false,
@@ -24,6 +27,8 @@ export const initialSettings = {
   hide_model: false,
   hide_toolbar: false,
   hide_toolbar_text: true,
+  auto_title: true,
+  auto_model: "",
 };
 
 export const settingsSlice = createSlice({
@@ -44,6 +49,8 @@ export const settingsSlice = createSlice({
     hide_model: getBooleanMemory("hide_model", false), // hide model
     hide_toolbar: getBooleanMemory("hide_toolbar", false), // hide toolbar
     hide_toolbar_text: getBooleanMemory("hide_toolbar_text", true), // hide toolbar text
+    auto_title: getBooleanMemory("auto_title", true),
+    auto_model: localStorage.getItem("auto_model") || "",
   },
   reducers: {
     toggleDialog: (state) => {
@@ -114,6 +121,14 @@ export const settingsSlice = createSlice({
       state.hide_toolbar_text = action.payload as boolean;
       setBooleanMemory("hide_toolbar_text", action.payload);
     },
+    setAutoTitle: (state, action) => {
+      state.auto_title = action.payload as boolean;
+      setBooleanMemory("auto_title", action.payload);
+    },
+    setAutoModel: (state, action) => {
+      state.auto_model = action.payload as string;
+      localStorage.setItem("auto_model", action.payload);
+    },
     resetSettings: (state) => {
       state.context = initialSettings.context;
       state.align = initialSettings.align;
@@ -129,6 +144,8 @@ export const settingsSlice = createSlice({
       state.hide_model = initialSettings.hide_model;
       state.hide_toolbar = initialSettings.hide_toolbar;
       state.hide_toolbar_text = initialSettings.hide_toolbar_text;
+      state.auto_title = initialSettings.auto_title;
+      state.auto_model = initialSettings.auto_model;
 
       setBooleanMemory("context", initialSettings.context);
       setBooleanMemory("align", initialSettings.align);
@@ -144,6 +161,8 @@ export const settingsSlice = createSlice({
       setBooleanMemory("hide_model", initialSettings.hide_model);
       setBooleanMemory("hide_toolbar", initialSettings.hide_toolbar);
       setBooleanMemory("hide_toolbar_text", initialSettings.hide_toolbar_text);
+      setBooleanMemory("auto_title", initialSettings.auto_title);
+      localStorage.setItem("auto_model", initialSettings.auto_model);
     },
   },
 });
@@ -168,6 +187,8 @@ export const {
   setHideModel,
   setHideToolbar,
   setHideToolbarText,
+  setAutoTitle,
+  setAutoModel,
 } = settingsSlice.actions;
 export default settingsSlice.reducer;
 
@@ -199,3 +220,30 @@ export const hideToolbarSelector = (state: RootState): boolean =>
   state.settings.hide_toolbar;
 export const hideToolbarTextSelector = (state: RootState): boolean =>
   state.settings.hide_toolbar_text;
+export const autoTitleSelector = (state: RootState): boolean =>
+  state.settings.auto_title;
+export const autoModelSelector = (state: RootState): string =>
+  state.settings.auto_model;
+
+export const fetchUserSettings = async (dispatch: AppDispatch) => {
+  try {
+    const response = await getUserSettings();
+    if (response.status) {
+      dispatch(setAutoTitle(response.data.auto_title));
+      dispatch(setAutoModel(response.data.auto_model));
+    }
+  } catch (e) {
+    console.warn("[settings] failed to fetch user settings:", e);
+  }
+};
+
+export const saveUserSettingsAction = async (settings: UserSettings) => {
+  try {
+    const response = await saveUserSettings(settings);
+    if (!response.status) {
+      console.warn("[settings] failed to save user settings:", response.error);
+    }
+  } catch (e) {
+    console.warn("[settings] failed to save user settings:", e);
+  }
+};

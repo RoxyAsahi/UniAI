@@ -15,10 +15,19 @@ self.addEventListener('install', function (event) {
 });
 
 self.addEventListener('fetch', function (event) {
+  const request = event.request;
+  if (request.method !== 'GET') return;
+
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return;
+
   event.respondWith(
-    caches.match(event.request)
+    caches.match(request)
       .then(function (response) {
-        return response || fetch(event.request);
+        if (response) return response;
+        return fetch(request).catch(function () {
+          return new Response("", { status: 504, statusText: "Gateway Timeout" });
+        });
       })
   );
 });

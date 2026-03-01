@@ -76,6 +76,10 @@ func (u *User) IsEnterprise(db *sql.DB) bool {
 }
 
 func (u *User) GetSubscriptionExpiredDay(db *sql.DB) int {
+	if !u.IsSubscribe(db) {
+		return 0
+	}
+
 	stamp := u.GetSubscriptionTime(db).Sub(time.Now())
 	return int(math.Round(stamp.Hours() / 24))
 }

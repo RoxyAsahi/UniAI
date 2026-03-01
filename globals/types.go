@@ -23,6 +23,8 @@ type ChatSegmentResponse struct {
 	Quota        float32 `json:"quota"`
 	Keyword      string  `json:"keyword"`
 	Message      string  `json:"message"`
+	Title        string  `json:"title"`
+	Titling      bool    `json:"titling"`
 	End          bool    `json:"end"`
 	Plan         bool    `json:"plan"`
 }

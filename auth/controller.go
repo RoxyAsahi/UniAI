@@ -295,6 +295,55 @@ func UserInfoAPI(c *gin.Context) {
 	}
 }
 
+func GetSettingsAPI(c *gin.Context) {
+	user := GetUserByCtx(c)
+	if user == nil {
+		return
+	}
+
+	db := utils.GetDBFromContext(c)
+	settings := user.GetSettings(db)
+	if settings == nil {
+		settings = &UserSettings{
+			AutoTitle: channel.SystemInstance.GetAutoTitleEnabled(),
+			AutoModel: channel.SystemInstance.GetAutoTitleModel(),
+		}
+	}
+
+	c.JSON(200, gin.H{
+		"status": true,
+		"data":   settings,
+	})
+}
+
+func UpdateSettingsAPI(c *gin.Context) {
+	user := GetUserByCtx(c)
+	if user == nil {
+		return
+	}
+
+	var settings UserSettings
+	if err := c.ShouldBindJSON(&settings); err != nil {
+		c.JSON(200, gin.H{
+			"status": false,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	db := utils.GetDBFromContext(c)
+	if err := user.UpdateSettings(db, &settings); err == nil {
+		c.JSON(200, gin.H{
+			"status": true,
+		})
+	} else {
+		c.JSON(200, gin.H{
+			"status": false,
+			"error":  err.Error(),
+		})
+	}
+}
+
 func IndexAPI(c *gin.Context) {
 	username := utils.GetUserFromContext(c)
 
@@ -391,6 +440,7 @@ func SubscriptionAPI(c *gin.Context) {
 			"refresh_at":    "1970-01-01 00:00:00",
 			"usage":         channel.UsageMap{},
 		})
+		return
 	}
 
 	c.JSON(200, gin.H{

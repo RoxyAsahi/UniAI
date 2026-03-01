@@ -15,6 +15,7 @@ export type StreamMessage = {
   end: boolean;
   plan?: boolean;
   title?: string;
+  titling?: boolean;
   search_query?: {
     type: string;
     search_queries: string[];

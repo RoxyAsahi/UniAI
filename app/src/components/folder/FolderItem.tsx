@@ -7,6 +7,7 @@ import {
   Folder as FolderIcon,
   FolderOutput,
   MessageSquare,
+  Loader2,
   Check,
   X,
 } from "lucide-react";
@@ -193,7 +194,7 @@ export function FolderItem({
                 {/* Conversations in this folder */}
                 {folderConversations.map((conv, i) => (
                   <Draggable
-                    key={conv.id}
+                    key={conv.clientKey ?? String(conv.id)}
                     draggableId={String(conv.id)}
                     index={i}
                   >
@@ -217,7 +218,11 @@ export function FolderItem({
                           onConversationClick(conv.id)
                         }
                       >
-                        {conv.avatar ? (
+                        {conv.titling ? (
+                          <div className="h-4 w-4 flex items-center justify-center shrink-0">
+                            <Loader2 className="h-3 w-3 animate-spin text-secondary" />
+                          </div>
+                        ) : conv.avatar ? (
                           <div className="h-4 w-4 flex items-center justify-center shrink-0 text-xs">
                             <Emoji emoji={conv.avatar} />
                           </div>

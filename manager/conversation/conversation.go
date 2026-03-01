@@ -362,6 +362,8 @@ func (c *Conversation) HandleMessage(db *sql.DB, form *FormMessage) bool {
 		return false
 	}
 	if head {
+		// Keep the legacy "first user message" title as the initial placeholder.
+		// Auto-title can replace it after the first assistant response arrives.
 		c.SetName(db, form.Message)
 	}
 	c.SaveConversation(db)
@@ -375,6 +377,8 @@ func (c *Conversation) HandleMessageFromByte(db *sql.DB, data []byte) bool {
 		return false
 	}
 	if head {
+		// Keep the legacy "first user message" title as the initial placeholder.
+		// Auto-title can replace it after the first assistant response arrives.
 		c.SetName(db, msg)
 	}
 	c.SaveConversation(db)

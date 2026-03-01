@@ -29,61 +29,63 @@ import { Switch } from "@/components/ui/switch.tsx";
 import { Label } from "@/components/ui/label.tsx";
 import { toggleTimeline, useTimelineVisible } from "@/store/timeline";
 
-type ChatActionProps = {
-  style?: React.CSSProperties;
-  className?: string;
+type ChatActionProps = Omit<
+  React.ComponentPropsWithoutRef<typeof Button>,
+  "children"
+> & {
   text?: string;
   active?: boolean | number;
   show?: boolean;
   children?: React.ReactElement;
-  onClick?: () => void;
 };
 
-export const ChatAction = ({
-  className,
-  text,
-  children,
-  active,
-  show = true,
-  onClick,
-  ...props
-}: ChatActionProps) => {
-  return (
-    <div className={cn(
-      "transition-all duration-300",
-      !show && "opacity-0 pointer-events-none invisible"
-    )}>
-      <TooltipProvider>
-        <Tooltip delayDuration={250}>
-          <TooltipTrigger>
-            <Clickable tapScale={0.9}>
-              <Button
-                size={`icon-sm`}
-                variant={`ghost`}
-                className={cn(
-                  "group hover:bg-muted-foreground/5 mr-1",
-                  active && `bg-muted-foreground/10 hover:bg-muted-foreground/20`,
-                  className,
-                )}
-                onClick={onClick}
-                {...props}
-              >
-                <Icon
-                  icon={children}
+export const ChatAction = React.forwardRef<HTMLButtonElement, ChatActionProps>(
+  (
+    { className, text, children, active, show = true, onClick, ...props },
+    ref,
+  ) => {
+    return (
+      <div
+        className={cn(
+          "transition-all duration-300",
+          !show && "opacity-0 pointer-events-none invisible",
+        )}
+      >
+        <TooltipProvider>
+          <Tooltip delayDuration={250}>
+            <TooltipTrigger>
+              <Clickable tapScale={0.9}>
+                <Button
+                  ref={ref}
+                  size={`icon-sm`}
+                  variant={`ghost`}
                   className={cn(
-                    `h-[1.125rem] w-[1.125rem] text-unread transition shrink-0 stroke-[2]`,
-                    active && "text-primary",
+                    "group hover:bg-muted-foreground/5 mr-1",
+                    active && `bg-muted-foreground/10 hover:bg-muted-foreground/20`,
+                    className,
                   )}
-                />
-              </Button>
-            </Clickable>
-          </TooltipTrigger>
-          <TooltipContent>{text}</TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    </div>
-  );
-};
+                  onClick={onClick}
+                  {...props}
+                >
+                  <Icon
+                    icon={children}
+                    className={cn(
+                      `h-[1.125rem] w-[1.125rem] text-unread transition shrink-0 stroke-[2]`,
+                      active && "text-primary",
+                    )}
+                  />
+                </Button>
+              </Clickable>
+            </TooltipTrigger>
+            <TooltipContent>{text}</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
+    );
+  },
+);
+
+ChatAction.displayName = "ChatAction";
 
 export function WebAction() {
   const { t } = useTranslation();

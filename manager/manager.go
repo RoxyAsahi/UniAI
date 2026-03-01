@@ -85,6 +85,7 @@ func ChatAPI(c *gin.Context) {
 			if instance.HandleMessage(db, form) {
 				response := ChatHandler(buf, user, instance, false)
 				instance.SaveResponse(db, response)
+				TriggerAutoTitle(db, buf, instance)
 			}
 		case StopType:
 			break
@@ -96,6 +97,7 @@ func ChatAPI(c *gin.Context) {
 
 			response := ChatHandler(buf, user, instance, true)
 			instance.SaveResponse(db, response)
+			TriggerAutoTitle(db, buf, instance)
 		case MaskType:
 			instance.LoadMask(form.Message)
 		case EditType:
