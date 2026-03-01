@@ -9,6 +9,9 @@ export const maxConnection = 5;
 
 export type StreamMessage = {
   conversation?: number;
+  event?: string;
+  message_index?: number;
+  follow_ups?: string[];
   keyword?: string;
   quota?: number;
   message: string;

@@ -21,21 +21,22 @@ type logoTextState struct {
 }
 
 type ApiInfo struct {
-	Title        string         `json:"title"`
-	Logo         string         `json:"logo"`
-	File         string         `json:"file"`
-	Docs         string         `json:"docs"`
-	Announcement string         `json:"announcement"`
-	BuyLink      string         `json:"buy_link"`
-	Contact      string         `json:"contact"`
-	Footer       string         `json:"footer"`
-	AuthFooter   bool           `json:"auth_footer"`
-	Mail         bool           `json:"mail"`
-	Article      []string       `json:"article"`
-	Generation   []string       `json:"generation"`
-	RelayPlan    bool           `json:"relay_plan"`
-	LogoText     *logoTextState `json:"logo_text"`
-	AutoTitle    autoTitleState `json:"auto_title"`
+	Title        string            `json:"title"`
+	Logo         string            `json:"logo"`
+	File         string            `json:"file"`
+	Docs         string            `json:"docs"`
+	Announcement string            `json:"announcement"`
+	BuyLink      string            `json:"buy_link"`
+	Contact      string            `json:"contact"`
+	Footer       string            `json:"footer"`
+	AuthFooter   bool              `json:"auth_footer"`
+	Mail         bool              `json:"mail"`
+	Article      []string          `json:"article"`
+	Generation   []string          `json:"generation"`
+	RelayPlan    bool              `json:"relay_plan"`
+	LogoText     *logoTextState    `json:"logo_text"`
+	AutoTitle    autoTitleState    `json:"auto_title"`
+	FollowUp     autoFollowUpState `json:"follow_up"`
 }
 
 type generalState struct {
@@ -105,13 +106,22 @@ type autoTitleState struct {
 	Prompt    string `json:"prompt" mapstructure:"prompt"`
 }
 
+type autoFollowUpState struct {
+	Enabled bool   `json:"enabled" mapstructure:"enabled"`
+	Model   string `json:"model" mapstructure:"model"`
+	Count   int    `json:"count" mapstructure:"count"`
+	Context int    `json:"context" mapstructure:"context"`
+	Prompt  string `json:"prompt" mapstructure:"prompt"`
+}
+
 type SystemConfig struct {
-	General   generalState   `json:"general" mapstructure:"general"`
-	Site      siteState      `json:"site" mapstructure:"site"`
-	Mail      mailState      `json:"mail" mapstructure:"mail"`
-	Search    SearchState    `json:"search" mapstructure:"search"`
-	Common    commonState    `json:"common" mapstructure:"common"`
-	AutoTitle autoTitleState `json:"auto_title" mapstructure:"autotitle"`
+	General   generalState      `json:"general" mapstructure:"general"`
+	Site      siteState         `json:"site" mapstructure:"site"`
+	Mail      mailState         `json:"mail" mapstructure:"mail"`
+	Search    SearchState       `json:"search" mapstructure:"search"`
+	Common    commonState       `json:"common" mapstructure:"common"`
+	AutoTitle autoTitleState    `json:"auto_title" mapstructure:"autotitle"`
+	FollowUp  autoFollowUpState `json:"follow_up" mapstructure:"followup"`
 }
 
 func NewSystemConfig() *SystemConfig {
@@ -158,6 +168,15 @@ func (c *SystemConfig) Load() {
 	if c.AutoTitle.MinMsgs <= 0 {
 		c.AutoTitle.MinMsgs = 2
 	}
+	if !viper.IsSet("system.followup.enabled") {
+		c.FollowUp.Enabled = true
+	}
+	if c.FollowUp.Count <= 0 {
+		c.FollowUp.Count = 3
+	}
+	if c.FollowUp.Context <= 0 {
+		c.FollowUp.Context = 6
+	}
 }
 
 func (c *SystemConfig) SaveConfig() error {
@@ -184,6 +203,7 @@ func (c *SystemConfig) AsInfo() ApiInfo {
 		RelayPlan:    c.Site.RelayPlan,
 		LogoText:     c.General.LogoText,
 		AutoTitle:    c.AutoTitle,
+		FollowUp:     c.FollowUp,
 	}
 }
 
@@ -194,6 +214,7 @@ func (c *SystemConfig) UpdateConfig(data *SystemConfig) error {
 	c.Search = data.Search
 	c.Common = data.Common
 	c.AutoTitle = data.AutoTitle
+	c.FollowUp = data.FollowUp
 
 	utils.ApplySeo(c.General.Title, c.General.Logo)
 	utils.ApplyPWAManifest(c.General.PWAManifest)
@@ -363,4 +384,24 @@ func (c *SystemConfig) GetAutoTitleOverwrite() bool {
 
 func (c *SystemConfig) GetAutoTitlePrompt() string {
 	return c.AutoTitle.Prompt
+}
+
+func (c *SystemConfig) GetFollowUpEnabled() bool {
+	return c.FollowUp.Enabled
+}
+
+func (c *SystemConfig) GetFollowUpModel() string {
+	return c.FollowUp.Model
+}
+
+func (c *SystemConfig) GetFollowUpCount() int {
+	return c.FollowUp.Count
+}
+
+func (c *SystemConfig) GetFollowUpContext() int {
+	return c.FollowUp.Context
+}
+
+func (c *SystemConfig) GetFollowUpPrompt() string {
+	return c.FollowUp.Prompt
 }

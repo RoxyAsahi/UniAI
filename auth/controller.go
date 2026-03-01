@@ -305,8 +305,12 @@ func GetSettingsAPI(c *gin.Context) {
 	settings := user.GetSettings(db)
 	if settings == nil {
 		settings = &UserSettings{
-			AutoTitle: channel.SystemInstance.GetAutoTitleEnabled(),
-			AutoModel: channel.SystemInstance.GetAutoTitleModel(),
+			AutoTitle:            channel.SystemInstance.GetAutoTitleEnabled(),
+			AutoModel:            channel.SystemInstance.GetAutoTitleModel(),
+			AutoFollowUp:         channel.SystemInstance.GetFollowUpEnabled(),
+			FollowUpModel:        channel.SystemInstance.GetFollowUpModel(),
+			InsertFollowUpPrompt: false,
+			KeepFollowUpPrompts:  false,
 		}
 	}
 

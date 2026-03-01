@@ -1685,3 +1685,53 @@ const isDragOver = dragOverFolderId === folder.id;
 
 1. `go test ./auth/...` 通过。
 2. 前端 `pnpm build` 未通过，但失败项为项目已存在 TypeScript 问题（如 `FolderItem.tsx`、`System.tsx`、`store/chat.ts` 等），非本次改动引入。
+
+---
+
+## 开发记录（2026-03-02）— 建议回答（Follow-up Questions）功能落地
+
+### 1) 功能实现（后端 + 前端）
+
+本次新增了类似 Open WebUI 的“建议回答/追问建议”能力，采用异步生成链路：
+
+- 主回复完成后异步触发 follow-up 生成任务（不阻塞主回复）。
+- 使用独立 Prompt 生成结构化 `follow_ups`。
+- 通过 WebSocket 事件下发到前端（`event = "follow_ups"`）。
+- 前端把建议问题注入到对应 assistant 消息并实时渲染。
+
+关键点：
+- 后端支持模型 fallback、JSON 清洗与健壮解析。
+- 支持用户级设置：
+  - `auto_follow_up`
+  - `follow_up_model`
+  - `insert_follow_up_prompt`（点击后仅插入输入框）
+  - `keep_follow_up_prompts`（是否保留旧追问）
+
+### 2) UI 调整（追问位置与样式）
+
+根据反馈，追问不再出现在右侧，而是改为“消息气泡下方的独立区块”：
+
+- 结构调整为 `message-main`（纵向）：
+  - 上：回答内容
+  - 下：追问建议
+- 样式调整：
+  - 增加“追问建议”标题
+  - 追问列表卡片化
+  - hover 高亮与分隔线优化
+  - 移动端宽度适配
+
+### 3) 前端 TypeScript 报错清理
+
+已修复并验证 `pnpm -C app exec tsc --noEmit` 通过。
+
+修复项：
+- `FolderItem.tsx`：移除未使用 `ChevronRight`。
+- `FolderTree.tsx`：移除未使用 `Plus`。
+- `clickable.tsx`：`ClickableProps` 改为继承 `motion.div` 的组件 props，消除 `framer-motion` 事件签名冲突。
+- `System.tsx`：`NumberInput` 使用 `onValueChange`；`auto_title` 传参增加空值回退。
+- `info.ts` / `admin/api/info.ts`：补齐 `logo_text.vertical_offset` 类型与默认值，消除字段缺失报错。
+
+### 4) 校验结果
+
+- Go 编译：`go build ./...` 通过。
+- 前端类型检查：`pnpm -C app exec tsc --noEmit` 通过。

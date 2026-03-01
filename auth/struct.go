@@ -1,16 +1,21 @@
 package auth
 
 import (
-	"fmt"
 	"chat/globals"
 	"chat/utils"
 	"database/sql"
+	"fmt"
+	"strings"
 	"time"
 )
 
 type UserSettings struct {
-	AutoTitle bool   `json:"auto_title"`
-	AutoModel string `json:"auto_model"`
+	AutoTitle            bool   `json:"auto_title"`
+	AutoModel            string `json:"auto_model"`
+	AutoFollowUp         bool   `json:"auto_follow_up"`
+	FollowUpModel        string `json:"follow_up_model"`
+	InsertFollowUpPrompt bool   `json:"insert_follow_up_prompt"`
+	KeepFollowUpPrompts  bool   `json:"keep_follow_up_prompts"`
 }
 
 type User struct {
@@ -34,24 +39,45 @@ func (u *User) GetSettings(db *sql.DB) *UserSettings {
 
 	uid := u.GetID(db)
 	if uid <= 0 {
-		u.Settings = &UserSettings{AutoTitle: true}
+		u.Settings = &UserSettings{
+			AutoTitle:            true,
+			AutoFollowUp:         true,
+			InsertFollowUpPrompt: false,
+			KeepFollowUpPrompts:  false,
+		}
 		return u.Settings
 	}
 
 	var data sql.NullString
 	if err := globals.QueryRowDb(db, "SELECT auto_title FROM auth WHERE id = ?", uid).Scan(&data); err != nil {
-		u.Settings = &UserSettings{AutoTitle: true}
+		u.Settings = &UserSettings{
+			AutoTitle:            true,
+			AutoFollowUp:         true,
+			InsertFollowUpPrompt: false,
+			KeepFollowUpPrompts:  false,
+		}
 		return u.Settings
 	}
 
 	if data.Valid && len(data.String) > 0 {
 		if settings, err := utils.UnmarshalString[UserSettings](data.String); err == nil {
+			if !strings.Contains(data.String, "\"auto_title\"") {
+				settings.AutoTitle = true
+			}
+			if !strings.Contains(data.String, "\"auto_follow_up\"") {
+				settings.AutoFollowUp = true
+			}
 			u.Settings = &settings
 			return &settings
 		}
 	}
 
-	u.Settings = &UserSettings{AutoTitle: true}
+	u.Settings = &UserSettings{
+		AutoTitle:            true,
+		AutoFollowUp:         true,
+		InsertFollowUpPrompt: false,
+		KeepFollowUpPrompts:  false,
+	}
 	return u.Settings
 }
 

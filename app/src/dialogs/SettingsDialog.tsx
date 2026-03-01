@@ -70,6 +70,10 @@ function SettingsDialog() {
 
   const autoTitle = useSelector(settings.autoTitleSelector);
   const autoModel = useSelector(settings.autoModelSelector);
+  const autoFollowUp = useSelector(settings.autoFollowUpSelector);
+  const followUpModel = useSelector(settings.followUpModelSelector);
+  const insertFollowUpPrompt = useSelector(settings.insertFollowUpPromptSelector);
+  const keepFollowUpPrompts = useSelector(settings.keepFollowUpPromptsSelector);
   const supportModels = useSelector(selectSupportModels);
 
   const [memorySize, setMemorySize] = useState(getMemoryPerformance());
@@ -89,6 +93,18 @@ function SettingsDialog() {
 
     return () => clearInterval(interval);
   }, []);
+
+  const persistUserSettings = (override?: Record<string, string | boolean>) => {
+    settings.saveUserSettingsAction({
+      auto_title: autoTitle,
+      auto_model: autoModel,
+      auto_follow_up: autoFollowUp,
+      follow_up_model: followUpModel,
+      insert_follow_up_prompt: insertFollowUpPrompt,
+      keep_follow_up_prompts: keepFollowUpPrompts,
+      ...(override || {}),
+    });
+  };
 
   return (
     <Dialog
@@ -155,10 +171,7 @@ function SettingsDialog() {
                       checked={autoTitle}
                       onCheckedChange={(value) => {
                         dispatch(settings.setAutoTitle(value));
-                        settings.saveUserSettingsAction({
-                          auto_title: value,
-                          auto_model: autoModel,
-                        });
+                        persistUserSettings({ auto_title: value });
                       }}
                     />
                   </div>
@@ -172,10 +185,7 @@ function SettingsDialog() {
                         value={autoModel}
                         onChange={(value) => {
                           dispatch(settings.setAutoModel(value));
-                          settings.saveUserSettingsAction({
-                            auto_title: autoTitle,
-                            auto_model: value,
-                          });
+                          persistUserSettings({ auto_model: value });
                         }}
                         list={supportModels.map((m) => m.id)}
                         placeholder={t(
@@ -184,6 +194,64 @@ function SettingsDialog() {
                       />
                     </div>
                   )}
+                  <div className={`item`}>
+                    <div className={`name`}>
+                      {t("settings.follow-up-enabled", "建议回答")}
+                    </div>
+                    <div className={`grow`} />
+                    <Switch
+                      checked={autoFollowUp}
+                      onCheckedChange={(value) => {
+                        dispatch(settings.setAutoFollowUp(value));
+                        persistUserSettings({ auto_follow_up: value });
+                      }}
+                    />
+                  </div>
+                  {autoFollowUp && (
+                    <div className={`item`}>
+                      <div className={`name`}>
+                        {t("settings.follow-up-model", "建议回答模型")}
+                      </div>
+                      <div className={`grow`} />
+                      <Combobox
+                        value={followUpModel}
+                        onChange={(value) => {
+                          dispatch(settings.setFollowUpModel(value));
+                          persistUserSettings({ follow_up_model: value });
+                        }}
+                        list={supportModels.map((m) => m.id)}
+                        placeholder={t("settings.follow-up-model-placeholder", "默认与当前聊天模型一致")}
+                      />
+                    </div>
+                  )}
+                  <div className={`item`}>
+                    <div className={`name`}>
+                      {t("settings.follow-up-insert-mode", "点击建议仅插入输入框")}
+                    </div>
+                    <div className={`grow`} />
+                    <Checkbox
+                      className={`value`}
+                      checked={insertFollowUpPrompt}
+                      onCheckedChange={(state: boolean) => {
+                        dispatch(settings.setInsertFollowUpPrompt(state));
+                        persistUserSettings({ insert_follow_up_prompt: state });
+                      }}
+                    />
+                  </div>
+                  <div className={`item`}>
+                    <div className={`name`}>
+                      {t("settings.follow-up-keep", "保留历史建议问题")}
+                    </div>
+                    <div className={`grow`} />
+                    <Checkbox
+                      className={`value`}
+                      checked={keepFollowUpPrompts}
+                      onCheckedChange={(state: boolean) => {
+                        dispatch(settings.setKeepFollowUpPrompts(state));
+                        persistUserSettings({ keep_follow_up_prompts: state });
+                      }}
+                    />
+                  </div>
                 </div>
                 <div className={`settings-segment`}>
                   <div className={`item`}>

@@ -3,7 +3,6 @@ import {
   AssistantRole,
   ConversationInstance,
   Model,
-  SystemRole,
   UserRole,
 } from "@/api/types.tsx";
 import { Message } from "@/api/types.tsx";
@@ -39,6 +38,8 @@ import {
   contextSelector,
   frequencyPenaltySelector,
   historySelector,
+  insertFollowUpPromptSelector,
+  keepFollowUpPromptsSelector,
   maxTokensSelector,
   presencePenaltySelector,
   repetitionPenaltySelector,
@@ -202,7 +203,7 @@ const chatSlice = createSlice({
       if (conversation.messages.length === 0)
         conversation.messages.push({
           role: AssistantRole,
-          content: message.message,
+          content: message.message || "",
           keyword: message.keyword,
           quota: message.quota,
           end: message.end,
@@ -210,7 +211,7 @@ const chatSlice = createSlice({
         });
 
       const instance = conversation.messages[conversation.messages.length - 1];
-      if (message.message.length > 0) instance.content += message.message;
+      if (message.message && message.message.length > 0) instance.content += message.message;
       if (message.keyword) instance.keyword = message.keyword;
       if (message.quota) instance.quota = message.quota;
       if (message.end) instance.end = message.end;
@@ -221,6 +222,50 @@ const chatSlice = createSlice({
         if (message.title) entry.name = message.title;
         if (message.titling !== undefined) entry.titling = message.titling;
       }
+    },
+    setMessageFollowUps: (state, action) => {
+      const { id, idx, followUps } = action.payload as {
+        id: number;
+        idx: number;
+        followUps: string[];
+      };
+      const conversation = state.conversations[id];
+      if (!conversation) return;
+
+      let target = idx;
+      if (
+        target < 0 ||
+        target >= conversation.messages.length ||
+        conversation.messages[target].role !== AssistantRole
+      ) {
+        for (let i = conversation.messages.length - 1; i >= 0; i--) {
+          if (conversation.messages[i].role === AssistantRole) {
+            target = i;
+            break;
+          }
+        }
+      }
+
+      if (
+        target < 0 ||
+        target >= conversation.messages.length ||
+        conversation.messages[target].role !== AssistantRole
+      ) {
+        return;
+      }
+
+      conversation.messages[target].follow_ups = followUps;
+    },
+    clearConversationFollowUps: (state, action) => {
+      const { id } = action.payload as { id: number };
+      const conversation = state.conversations[id];
+      if (!conversation) return;
+
+      conversation.messages.forEach((message) => {
+        if (message.role === AssistantRole && message.follow_ups) {
+          delete message.follow_ups;
+        }
+      });
     },
     removeMessage: (state, action) => {
       const { id, idx } = action.payload as { id: number; idx: number };
@@ -522,6 +567,8 @@ export const {
   fillMaskItem,
   createMessage,
   updateMessage,
+  setMessageFollowUps,
+  clearConversationFollowUps,
   removeMessage,
   restartMessage,
   editMessage,
@@ -566,8 +613,6 @@ export function useConversation(): ConversationSerialized | undefined {
 export function useConversationActions() {
   const dispatch = useDispatch();
   const conversations = useSelector(selectConversations);
-  const current = useSelector(selectCurrent);
-  const mask = useSelector(selectMaskItem);
 
   return {
     toggle: async (id: number) => {
@@ -657,9 +702,15 @@ export function useMessageActions() {
   const presence_penalty = useSelector(presencePenaltySelector);
   const frequency_penalty = useSelector(frequencyPenaltySelector);
   const repetition_penalty = useSelector(repetitionPenaltySelector);
+  const insertFollowUpPrompt = useSelector(insertFollowUpPromptSelector);
+  const keepFollowUpPrompts = useSelector(keepFollowUpPromptsSelector);
 
   return {
     send: async (message: string, using_model?: string) => {
+      if (!keepFollowUpPrompts) {
+        dispatch(clearConversationFollowUps({ id: current }));
+      }
+
       if (current === -1 && conversations[-1].messages.length === 0) {
         // Deferred preflight: create the sidebar entry only on first send.
         // For mask conversations use the preset name+avatar; for plain new chats use the message text.
@@ -752,6 +803,64 @@ export function useMessageActions() {
       if (!stack.hasConnection(current)) stack.createConnection(current);
       stack.sendEditEvent(current, t, idx, message);
     },
+    followUp: async (message: string) => {
+      const prompt = message.trim();
+      if (!prompt) return false;
+
+      if (insertFollowUpPrompt) {
+        const input = document.getElementById("input") as HTMLTextAreaElement | null;
+        if (input) {
+          input.value = prompt;
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+          input.focus();
+          return true;
+        }
+      }
+
+      if (!stack.hasConnection(current)) {
+        stack.createConnection(current);
+      }
+      if (!keepFollowUpPrompts) {
+        dispatch(clearConversationFollowUps({ id: current }));
+      }
+
+      const state = stack.send(current, t, {
+        type: "chat",
+        message: prompt,
+        web,
+        model,
+        context: history,
+        ignore_context: !context,
+        max_tokens,
+        temperature,
+        top_p,
+        top_k,
+        presence_penalty,
+        frequency_penalty,
+        repetition_penalty,
+      });
+      if (!state) return false;
+
+      dispatch(
+        createMessage({ id: current, role: UserRole, content: prompt }),
+      );
+      dispatch(createMessage({ id: current, role: AssistantRole }));
+
+      return true;
+    },
+    receiveFollowUps: (id: number, message: StreamMessage) => {
+      const followUps = message.follow_ups || [];
+      if (followUps.length === 0) return;
+
+      const target = message.conversation ?? id;
+      dispatch(
+        setMessageFollowUps({
+          id: target,
+          idx: message.message_index ?? -1,
+          followUps,
+        }),
+      );
+    },
     receive: async (id: number, message: StreamMessage) => {
       dispatch(updateMessage({ id, message }));
 
@@ -807,6 +916,9 @@ export function listenMessageEvent() {
         break;
       case "edit":
         actions.edit(e.index ?? -1, e.message ?? "");
+        break;
+      case "follow-up":
+        void actions.followUp(e.message ?? "");
         break;
     }
   };

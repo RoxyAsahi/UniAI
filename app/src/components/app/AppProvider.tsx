@@ -20,12 +20,14 @@ import { useEffect, useRef } from "react";
 
 function AppProvider({ children }: { children?: React.ReactNode }) {
   const dispatch = useDispatch();
-  const { receive } = useMessageActions();
+  const { receive, receiveFollowUps } = useMessageActions();
 
   // Always keep a ref to the latest receive so the one-time setCallback closure
   // never goes stale (chatHistory captured at mount would be empty otherwise).
   const receiveRef = useRef(receive);
   receiveRef.current = receive;
+  const receiveFollowUpsRef = useRef(receiveFollowUps);
+  receiveFollowUpsRef.current = receiveFollowUps;
 
   useEffect(() => {
     infoEvent.bind((data) => dispatch(setForm(data)));
@@ -53,6 +55,10 @@ function AppProvider({ children }: { children?: React.ReactNode }) {
             });
           }
         }
+        return;
+      }
+      if (message.event === "follow_ups") {
+        receiveFollowUpsRef.current(id, message);
         return;
       }
       await receiveRef.current(id, message);

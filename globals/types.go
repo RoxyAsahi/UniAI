@@ -10,6 +10,7 @@ type Message struct {
 	ToolCallId       *string       `json:"tool_call_id,omitempty"`      // only `tool` role
 	ToolCalls        *ToolCalls    `json:"tool_calls,omitempty"`        // only `assistant` role
 	ReasoningContent *string       `json:"reasoning_content,omitempty"` // only for deepseek reasoner models
+	FollowUps        *[]string     `json:"follow_ups,omitempty"`        // only `assistant` role
 }
 
 type Chunk struct {
@@ -19,14 +20,17 @@ type Chunk struct {
 }
 
 type ChatSegmentResponse struct {
-	Conversation int64   `json:"conversation"`
-	Quota        float32 `json:"quota"`
-	Keyword      string  `json:"keyword"`
-	Message      string  `json:"message"`
-	Title        string  `json:"title"`
-	Titling      bool    `json:"titling"`
-	End          bool    `json:"end"`
-	Plan         bool    `json:"plan"`
+	Conversation int64    `json:"conversation"`
+	Quota        float32  `json:"quota"`
+	Keyword      string   `json:"keyword"`
+	Message      string   `json:"message"`
+	Title        string   `json:"title"`
+	Titling      bool     `json:"titling"`
+	End          bool     `json:"end"`
+	Plan         bool     `json:"plan"`
+	Event        string   `json:"event,omitempty"`
+	MessageIndex *int     `json:"message_index,omitempty"`
+	FollowUps    []string `json:"follow_ups,omitempty"`
 }
 
 type GenerationSegmentResponse struct {

@@ -162,6 +162,10 @@ export const initialUserInfo: UserInfo = {
 export type UserSettings = {
   auto_title: boolean;
   auto_model: string;
+  auto_follow_up: boolean;
+  follow_up_model: string;
+  insert_follow_up_prompt: boolean;
+  keep_follow_up_prompts: boolean;
 };
 
 export type UserSettingsResponse = {
@@ -176,7 +180,14 @@ export async function getUserSettings(): Promise<UserSettingsResponse> {
   } catch (e) {
     return {
       status: false,
-      data: { auto_title: true, auto_model: "" },
+      data: {
+        auto_title: true,
+        auto_model: "",
+        auto_follow_up: true,
+        follow_up_model: "",
+        insert_follow_up_prompt: false,
+        keep_follow_up_prompts: false,
+      },
     };
   }
 }

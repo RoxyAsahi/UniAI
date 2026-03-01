@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useDispatch } from "react-redux";
-import { Check, Plus, X } from "lucide-react";
+import { Check, X } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { useFolders, setFolders, removeFolder, updateFolderInStore } from "@/store/folder";

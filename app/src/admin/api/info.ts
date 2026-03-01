@@ -40,6 +40,7 @@ export type SiteInfo = {
     size: number;
     margin: number;
     letter_spacing: number;
+    vertical_offset?: number;
   };
 };
 

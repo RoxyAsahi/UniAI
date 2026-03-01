@@ -1260,7 +1260,7 @@ function AutoTitle({ data, dispatch, onChange }: CompProps<AutoTitleState>) {
             <Label>{t("admin.system.autoTitle.maxLen")}</Label>
             <NumberInput
               value={data.max_len}
-              onChange={(value) =>
+              onValueChange={(value) =>
                 dispatch({ type: "update:auto_title.max_len", value })
               }
               min={5}
@@ -1271,7 +1271,7 @@ function AutoTitle({ data, dispatch, onChange }: CompProps<AutoTitleState>) {
             <Label>{t("admin.system.autoTitle.minMsgs")}</Label>
             <NumberInput
               value={data.min_msgs}
-              onChange={(value) =>
+              onValueChange={(value) =>
                 dispatch({ type: "update:auto_title.min_msgs", value })
               }
               min={1}
@@ -1397,7 +1397,7 @@ function System() {
           />
           <AutoTitle
             form={data}
-            data={data.auto_title}
+            data={data.auto_title ?? initialSystemState.auto_title!}
             dispatch={setData}
             onChange={doSaving}
           />

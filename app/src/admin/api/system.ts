@@ -153,6 +153,14 @@ export type AutoTitleState = {
   prompt: string;
 };
 
+export type AutoFollowUpState = {
+  enabled: boolean;
+  model: string;
+  count: number;
+  context: number;
+  prompt: string;
+};
+
 export type CommonState = {
   cache: string[];
   expire: number;
@@ -175,6 +183,7 @@ export type SystemProps = {
   security: SecurityState;
   custom: CustomState;
   auto_title?: AutoTitleState;
+  follow_up?: AutoFollowUpState;
 };
 
 export type SystemResponse = CommonResponse & {
@@ -304,6 +313,13 @@ export const initialSystemState: SystemProps = {
     overwrite: false,
     prompt: "",
   },
+  follow_up: {
+    enabled: false,
+    model: "",
+    count: 3,
+    context: 6,
+    prompt: "",
+  },
 };
 
 export async function getConfig(): Promise<SystemResponse> {
@@ -400,6 +416,19 @@ export async function getConfig(): Promise<SystemResponse> {
       at.min_msgs = typeof at.min_msgs === "number" && at.min_msgs > 0 ? at.min_msgs : 2;
       at.overwrite = !!at.overwrite;
       at.prompt = at.prompt || "";
+
+      const fu = (data.data.follow_up = data.data.follow_up || {
+        enabled: false,
+        model: "",
+        count: 3,
+        context: 6,
+        prompt: "",
+      });
+      fu.enabled = !!fu.enabled;
+      fu.model = fu.model || "";
+      fu.count = typeof fu.count === "number" && fu.count > 0 ? fu.count : 3;
+      fu.context = typeof fu.context === "number" && fu.context > 0 ? fu.context : 6;
+      fu.prompt = fu.prompt || "";
     }
 
     return data;

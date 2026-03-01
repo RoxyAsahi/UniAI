@@ -29,6 +29,10 @@ export const initialSettings = {
   hide_toolbar_text: true,
   auto_title: true,
   auto_model: "",
+  auto_follow_up: true,
+  follow_up_model: "",
+  insert_follow_up_prompt: false,
+  keep_follow_up_prompts: false,
 };
 
 export const settingsSlice = createSlice({
@@ -51,6 +55,10 @@ export const settingsSlice = createSlice({
     hide_toolbar_text: getBooleanMemory("hide_toolbar_text", true), // hide toolbar text
     auto_title: getBooleanMemory("auto_title", true),
     auto_model: localStorage.getItem("auto_model") || "",
+    auto_follow_up: getBooleanMemory("auto_follow_up", true),
+    follow_up_model: localStorage.getItem("follow_up_model") || "",
+    insert_follow_up_prompt: getBooleanMemory("insert_follow_up_prompt", false),
+    keep_follow_up_prompts: getBooleanMemory("keep_follow_up_prompts", false),
   },
   reducers: {
     toggleDialog: (state) => {
@@ -129,6 +137,22 @@ export const settingsSlice = createSlice({
       state.auto_model = action.payload as string;
       localStorage.setItem("auto_model", action.payload);
     },
+    setAutoFollowUp: (state, action) => {
+      state.auto_follow_up = action.payload as boolean;
+      setBooleanMemory("auto_follow_up", action.payload);
+    },
+    setFollowUpModel: (state, action) => {
+      state.follow_up_model = action.payload as string;
+      localStorage.setItem("follow_up_model", action.payload);
+    },
+    setInsertFollowUpPrompt: (state, action) => {
+      state.insert_follow_up_prompt = action.payload as boolean;
+      setBooleanMemory("insert_follow_up_prompt", action.payload);
+    },
+    setKeepFollowUpPrompts: (state, action) => {
+      state.keep_follow_up_prompts = action.payload as boolean;
+      setBooleanMemory("keep_follow_up_prompts", action.payload);
+    },
     resetSettings: (state) => {
       state.context = initialSettings.context;
       state.align = initialSettings.align;
@@ -146,6 +170,10 @@ export const settingsSlice = createSlice({
       state.hide_toolbar_text = initialSettings.hide_toolbar_text;
       state.auto_title = initialSettings.auto_title;
       state.auto_model = initialSettings.auto_model;
+      state.auto_follow_up = initialSettings.auto_follow_up;
+      state.follow_up_model = initialSettings.follow_up_model;
+      state.insert_follow_up_prompt = initialSettings.insert_follow_up_prompt;
+      state.keep_follow_up_prompts = initialSettings.keep_follow_up_prompts;
 
       setBooleanMemory("context", initialSettings.context);
       setBooleanMemory("align", initialSettings.align);
@@ -163,6 +191,10 @@ export const settingsSlice = createSlice({
       setBooleanMemory("hide_toolbar_text", initialSettings.hide_toolbar_text);
       setBooleanMemory("auto_title", initialSettings.auto_title);
       localStorage.setItem("auto_model", initialSettings.auto_model);
+      setBooleanMemory("auto_follow_up", initialSettings.auto_follow_up);
+      localStorage.setItem("follow_up_model", initialSettings.follow_up_model);
+      setBooleanMemory("insert_follow_up_prompt", initialSettings.insert_follow_up_prompt);
+      setBooleanMemory("keep_follow_up_prompts", initialSettings.keep_follow_up_prompts);
     },
   },
 });
@@ -189,6 +221,10 @@ export const {
   setHideToolbarText,
   setAutoTitle,
   setAutoModel,
+  setAutoFollowUp,
+  setFollowUpModel,
+  setInsertFollowUpPrompt,
+  setKeepFollowUpPrompts,
 } = settingsSlice.actions;
 export default settingsSlice.reducer;
 
@@ -224,13 +260,25 @@ export const autoTitleSelector = (state: RootState): boolean =>
   state.settings.auto_title;
 export const autoModelSelector = (state: RootState): string =>
   state.settings.auto_model;
+export const autoFollowUpSelector = (state: RootState): boolean =>
+  state.settings.auto_follow_up;
+export const followUpModelSelector = (state: RootState): string =>
+  state.settings.follow_up_model;
+export const insertFollowUpPromptSelector = (state: RootState): boolean =>
+  state.settings.insert_follow_up_prompt;
+export const keepFollowUpPromptsSelector = (state: RootState): boolean =>
+  state.settings.keep_follow_up_prompts;
 
 export const fetchUserSettings = async (dispatch: AppDispatch) => {
   try {
     const response = await getUserSettings();
     if (response.status) {
-      dispatch(setAutoTitle(response.data.auto_title));
-      dispatch(setAutoModel(response.data.auto_model));
+      dispatch(setAutoTitle(response.data.auto_title ?? true));
+      dispatch(setAutoModel(response.data.auto_model ?? ""));
+      dispatch(setAutoFollowUp(response.data.auto_follow_up ?? true));
+      dispatch(setFollowUpModel(response.data.follow_up_model ?? ""));
+      dispatch(setInsertFollowUpPrompt(response.data.insert_follow_up_prompt ?? false));
+      dispatch(setKeepFollowUpPrompts(response.data.keep_follow_up_prompts ?? false));
     }
   } catch (e) {
     console.warn("[settings] failed to fetch user settings:", e);

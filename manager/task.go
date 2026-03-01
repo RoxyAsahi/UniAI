@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"runtime/debug"
 	"strings"
+	"time"
 )
 
 const defaultAutoTitlePrompt = `请为以下对话生成一个简短的中文标题（3-10个字），准确反映对话主题。
@@ -35,9 +36,38 @@ Requirements:
 Conversation:
 {{MESSAGES}}`
 
+const defaultFollowUpPrompt = `请你站在用户视角，基于以下对话内容，生成 {{COUNT}} 个“用户接下来最可能继续追问的问题”。
+要求：
+1. 只输出 JSON 对象，格式必须是：{"follow_ups":["问题1？","问题2？","问题3？"]}
+2. 不要输出 markdown 代码块、解释文字、前后缀
+3. 问题要简短、具体、自然，避免重复
+4. 问题必须从用户口吻出发
+5. 当前日期：{{CURRENT_DATE}}
+
+对话内容：
+{{MESSAGES}}`
+
+const defaultFollowUpPromptEn = `Generate {{COUNT}} likely follow-up questions from the user's perspective based on the conversation below.
+Requirements:
+1. Output JSON only in this exact format: {"follow_ups":["Q1?","Q2?","Q3?"]}
+2. Do not output markdown, explanations, or any extra text
+3. Keep questions short, specific, natural, and non-repetitive
+4. Questions must be written from the user's point of view
+5. Current date: {{CURRENT_DATE}}
+
+Conversation:
+{{MESSAGES}}`
+
 type TitleResult struct {
 	Title string `json:"title"`
 }
+
+type FollowUpResult struct {
+	FollowUps []string `json:"follow_ups"`
+}
+
+var followUpNoisePattern = regexp.MustCompile(`(?s)<details\b[^>]*>.*?<\/details>|!\[.*?\]\(.*?\)`)
+var orderedListPrefixPattern = regexp.MustCompile(`^\d+[\.\)]\s*`)
 
 func containsChinese(text string) bool {
 	if len(text) == 0 {
@@ -367,4 +397,365 @@ func TriggerAutoTitle(db *sql.DB, conn *Connection, conv *conversation.Conversat
 	model := conv.GetModel()
 
 	go GenerateTitle(db, conn, conv, model)
+}
+
+func cleanFollowUpContent(content string) string {
+	cleaned := strings.TrimSpace(content)
+	if len(cleaned) == 0 {
+		return ""
+	}
+
+	cleaned = followUpNoisePattern.ReplaceAllString(cleaned, "")
+	cleaned = strings.TrimSpace(cleaned)
+
+	return cleaned
+}
+
+func buildFollowUpPrompt(messages []globals.Message, context int, count int, template string) string {
+	if len(messages) == 0 {
+		return ""
+	}
+	if count <= 0 {
+		count = 3
+	}
+	if context <= 0 {
+		context = 6
+	}
+
+	prompt := template
+	if strings.TrimSpace(prompt) == "" {
+		hasChinese := false
+		for _, msg := range messages {
+			if containsChinese(msg.Content) {
+				hasChinese = true
+				break
+			}
+		}
+
+		if hasChinese {
+			prompt = defaultFollowUpPrompt
+		} else {
+			prompt = defaultFollowUpPromptEn
+		}
+	}
+
+	start := 0
+	if len(messages) > context {
+		start = len(messages) - context
+	}
+
+	var text strings.Builder
+	for _, msg := range messages[start:] {
+		content := cleanFollowUpContent(msg.Content)
+		if len(content) == 0 {
+			continue
+		}
+
+		role := msg.Role
+		if role == globals.System {
+			role = "System"
+		} else if role == globals.User {
+			role = "User"
+		} else if role == globals.Assistant {
+			role = "Assistant"
+		}
+
+		text.WriteString(fmt.Sprintf("%s: %s\n", role, content))
+	}
+
+	prompt = strings.ReplaceAll(prompt, "{{MESSAGES}}", text.String())
+	prompt = strings.ReplaceAll(prompt, "{{COUNT}}", fmt.Sprintf("%d", count))
+	prompt = strings.ReplaceAll(prompt, "{{CURRENT_DATE}}", time.Now().Format("2006-01-02"))
+	prompt = strings.ReplaceAll(prompt, "{{USER_NAME}}", "")
+
+	return prompt
+}
+
+func cleanFollowUpResult(raw string) string {
+	cleaned := strings.TrimSpace(raw)
+	cleaned = strings.TrimPrefix(cleaned, "```json")
+	cleaned = strings.TrimPrefix(cleaned, "```")
+	cleaned = strings.TrimSuffix(cleaned, "```")
+	cleaned = strings.TrimSpace(cleaned)
+
+	start := strings.Index(cleaned, "{")
+	end := strings.LastIndex(cleaned, "}")
+	if start >= 0 && end >= 0 && end > start {
+		cleaned = cleaned[start : end+1]
+	}
+
+	return strings.TrimSpace(cleaned)
+}
+
+func normalizeFollowUps(followUps []string, count int) []string {
+	if count <= 0 {
+		count = 3
+	}
+
+	result := make([]string, 0, count)
+	seen := map[string]bool{}
+
+	for _, item := range followUps {
+		text := strings.TrimSpace(item)
+		if text == "" {
+			continue
+		}
+
+		text = strings.Trim(text, "\"'`")
+		text = strings.TrimSpace(text)
+		text = strings.TrimLeft(text, "-* ")
+
+		// Remove common ordered-list prefixes like "1. ", "2) ".
+		if m := orderedListPrefixPattern.FindString(text); m != "" {
+			text = strings.TrimSpace(strings.TrimPrefix(text, m))
+		}
+
+		if len(text) < 2 {
+			continue
+		}
+
+		key := strings.ToLower(text)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		result = append(result, text)
+
+		if len(result) >= count {
+			break
+		}
+	}
+
+	return result
+}
+
+func extractFollowUpsFromResponse(raw string, count int) []string {
+	cleaned := cleanFollowUpResult(raw)
+
+	parseJSON := func(input string) []string {
+		var result FollowUpResult
+		if err := json.Unmarshal([]byte(input), &result); err == nil {
+			return normalizeFollowUps(result.FollowUps, count)
+		}
+		return nil
+	}
+
+	if parsed := parseJSON(cleaned); len(parsed) > 0 {
+		return parsed
+	}
+
+	// Some models still emit single quotes or smart quotes in JSON.
+	repaired := strings.NewReplacer(
+		"‘", "\"",
+		"’", "\"",
+		"“", "\"",
+		"”", "\"",
+		"'", "\"",
+	).Replace(cleaned)
+	if parsed := parseJSON(repaired); len(parsed) > 0 {
+		return parsed
+	}
+
+	// Fallback: try extracting a JSON array.
+	arrStart := strings.Index(repaired, "[")
+	arrEnd := strings.LastIndex(repaired, "]")
+	if arrStart >= 0 && arrEnd > arrStart {
+		var arr []string
+		if err := json.Unmarshal([]byte(repaired[arrStart:arrEnd+1]), &arr); err == nil {
+			return normalizeFollowUps(arr, count)
+		}
+	}
+
+	// Last fallback: split lines and keep likely question lines.
+	lines := strings.Split(raw, "\n")
+	candidates := make([]string, 0, len(lines))
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if strings.HasPrefix(line, "{") || strings.HasPrefix(line, "}") {
+			continue
+		}
+		candidates = append(candidates, line)
+	}
+
+	return normalizeFollowUps(candidates, count)
+}
+
+func GenerateFollowUps(
+	db *sql.DB,
+	conn *Connection,
+	userID int64,
+	conversationID int64,
+	model string,
+	messageIndex int,
+	snapshot []globals.Message,
+) {
+	defer func() {
+		if r := recover(); r != nil {
+			globals.Warn(fmt.Sprintf("[follow-up] caught panic during follow-up generation: %s\n%s", r, debug.Stack()))
+		}
+	}()
+
+	systemConfig := channel.SystemInstance
+	if !systemConfig.GetFollowUpEnabled() {
+		return
+	}
+	if len(snapshot) == 0 {
+		return
+	}
+	autoFollowUpEnabled := systemConfig.GetFollowUpEnabled()
+	group := globals.AnonymousType
+	chatModel := model
+
+	if userID > 0 {
+		user := auth.GetUserById(db, userID)
+		if user == nil {
+			return
+		}
+
+		userSettings := user.GetSettings(db)
+		autoFollowUpEnabled = userSettings.AutoFollowUp
+
+		var isDefaultSettings bool
+		globals.QueryRowDb(db, "SELECT auto_title IS NULL FROM auth WHERE id = ?", user.ID).Scan(&isDefaultSettings)
+		if isDefaultSettings {
+			autoFollowUpEnabled = systemConfig.GetFollowUpEnabled()
+		}
+		if !autoFollowUpEnabled {
+			return
+		}
+
+		group = user.GetGroup(db)
+		if strings.TrimSpace(userSettings.FollowUpModel) != "" {
+			chatModel = strings.TrimSpace(userSettings.FollowUpModel)
+		} else if strings.TrimSpace(systemConfig.GetFollowUpModel()) != "" {
+			chatModel = strings.TrimSpace(systemConfig.GetFollowUpModel())
+		}
+	} else {
+		if !autoFollowUpEnabled {
+			return
+		}
+		if strings.TrimSpace(systemConfig.GetFollowUpModel()) != "" {
+			chatModel = strings.TrimSpace(systemConfig.GetFollowUpModel())
+		}
+	}
+
+	count := systemConfig.GetFollowUpCount()
+	contextLen := systemConfig.GetFollowUpContext()
+	prompt := buildFollowUpPrompt(snapshot, contextLen, count, systemConfig.GetFollowUpPrompt())
+	if strings.TrimSpace(prompt) == "" {
+		return
+	}
+
+	if group == "" || group == globals.AnonymousType {
+		group = globals.NormalType
+	}
+
+	if _, ok := channel.ChargeInstance.Models[chatModel]; !ok {
+		globals.Warn(fmt.Sprintf("[follow-up] model %s not found in charge rules, fallback to %s", chatModel, model))
+		chatModel = model
+	}
+
+	requestMessages := []globals.Message{
+		{
+			Role:    globals.User,
+			Content: prompt,
+		},
+	}
+
+	requestWithModel := func(targetModel string) (string, error) {
+		var output string
+		props := adaptercommon.CreateChatProps(&adaptercommon.ChatProps{
+			Model:         targetModel,
+			OriginalModel: targetModel,
+			Message:       requestMessages,
+			MaxTokens:     utils.ToPtr(1024),
+		}, utils.NewBuffer(targetModel, requestMessages, channel.ChargeInstance.GetCharge(targetModel)))
+
+		err := channel.NewChatRequest(group, props, func(chunk *globals.Chunk) error {
+			if chunk != nil && chunk.Content != "" {
+				output += chunk.Content
+			}
+			return nil
+		})
+
+		return output, err
+	}
+
+	raw, err := requestWithModel(chatModel)
+	if (err != nil || strings.TrimSpace(raw) == "") && chatModel != model {
+		globals.Warn(fmt.Sprintf("[follow-up] primary model %s failed for conversation %d, fallback to %s: %v", chatModel, conversationID, model, err))
+		raw, err = requestWithModel(model)
+	}
+	if err != nil || strings.TrimSpace(raw) == "" {
+		globals.Warn(fmt.Sprintf("[follow-up] failed to generate follow-ups for conversation %d: %v", conversationID, err))
+		return
+	}
+
+	followUps := extractFollowUpsFromResponse(raw, count)
+	if len(followUps) == 0 {
+		globals.Warn(fmt.Sprintf("[follow-up] failed to parse follow-ups for conversation %d (raw: %s)", conversationID, raw))
+		return
+	}
+
+	if userID > 0 {
+		conv := conversation.LoadConversation(db, userID, conversationID)
+		if conv == nil {
+			return
+		}
+		if messageIndex < 0 || messageIndex >= len(conv.Message) {
+			return
+		}
+		if conv.Message[messageIndex].Role != globals.Assistant {
+			return
+		}
+
+		conv.Message[messageIndex].FollowUps = &followUps
+		conv.SaveConversation(db)
+	}
+
+	if conn != nil {
+		idx := messageIndex
+		conn.Send(globals.ChatSegmentResponse{
+			Conversation: conversationID,
+			Event:        "follow_ups",
+			MessageIndex: &idx,
+			FollowUps:    followUps,
+		})
+	}
+
+	globals.Debug(fmt.Sprintf("[follow-up] generated %d follow-ups for conversation %d", len(followUps), conversationID))
+}
+
+func TriggerFollowUps(db *sql.DB, conn *Connection, conv *conversation.Conversation) {
+	if conv == nil {
+		return
+	}
+	if !channel.SystemInstance.GetFollowUpEnabled() {
+		return
+	}
+
+	msgLen := conv.GetMessageLength()
+	if msgLen == 0 {
+		return
+	}
+
+	messageIndex := msgLen - 1
+	last := conv.GetMessageById(messageIndex)
+	if last.Role != globals.Assistant || strings.TrimSpace(last.Content) == "" {
+		return
+	}
+
+	snapshot := conversation.CopyMessage(conv.GetMessage())
+	go GenerateFollowUps(
+		db,
+		conn,
+		conv.GetUserID(),
+		conv.GetId(),
+		conv.GetModel(),
+		messageIndex,
+		snapshot,
+	)
 }

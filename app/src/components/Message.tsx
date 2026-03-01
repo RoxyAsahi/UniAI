@@ -251,6 +251,7 @@ function MessageContent({
   selected,
   username,
 }: MessageProps) {
+  const { t } = useTranslation();
   const isUser = message.role === "user";
   const hasContent = message.content.length > 0;
   const isAssistant = message.role === "assistant";
@@ -328,43 +329,68 @@ function MessageContent({
           </MessageMenu>
         )}
       </div>
-      <div
-        className={`relative message-content dark:bg-muted/40 border dark:border-transparent hover:border-border`}
-      >
-        {hasContent ? (
-          <>
-            {parsedContent ? (
-              <>
-                <ThinkContent 
-                  content={parsedContent.thinkContent} 
-                  isComplete={parsedContent.isComplete}
-                />
-                {parsedContent.restContent && (
-                  <Markdown
-                    loading={message.end === false}
-                    children={message.content}
-                    acceptHtml={false}
+      <div className="message-main">
+        <div
+          className={`relative message-content dark:bg-muted/40 border dark:border-transparent hover:border-border`}
+        >
+          {hasContent ? (
+            <>
+              {parsedContent ? (
+                <>
+                  <ThinkContent 
+                    content={parsedContent.thinkContent} 
+                    isComplete={parsedContent.isComplete}
                   />
-                )}
-              </>
-            ) : (
-              <Markdown
-                loading={message.end === false}
-                children={message.content}
-                acceptHtml={false}
-              />
-            )}
-          </>
-        ) : message.end === true ? (
-          <CircleSlash className={`h-5 w-5 m-1`} />
-        ) : (
-          <Loader2 className={`h-5 w-5 m-1 animate-spin`} />
-        )}
+                  {parsedContent.restContent && (
+                    <Markdown
+                      loading={message.end === false}
+                      children={message.content}
+                      acceptHtml={false}
+                    />
+                  )}
+                </>
+              ) : (
+                <Markdown
+                  loading={message.end === false}
+                  children={message.content}
+                  acceptHtml={false}
+                />
+              )}
+            </>
+          ) : message.end === true ? (
+            <CircleSlash className={`h-5 w-5 m-1`} />
+          ) : (
+            <Loader2 className={`h-5 w-5 m-1 animate-spin`} />
+          )}
 
-        {isAssistant && hasContent && isOutput && (
-          <Loader2
-            className={`absolute right-0 bottom-0 h-3.5 w-3.5 m-1 animate-spin`}
-          />
+          {isAssistant && hasContent && isOutput && (
+            <Loader2
+              className={`absolute right-0 bottom-0 h-3.5 w-3.5 m-1 animate-spin`}
+            />
+          )}
+        </div>
+        {isAssistant && message.end === true && (message.follow_ups?.length || 0) > 0 && (
+          <motion.div
+            className="followups-wrapper"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.22, ease: "easeOut" }}
+          >
+            <div className="followups-title">{t("chat.followups", "追问建议")}</div>
+            <div className="followups-list">
+              {message.follow_ups!.map((item, idx) => (
+                <button
+                  key={`${index}-follow-up-${idx}`}
+                  type="button"
+                  className="followup-item"
+                  title={item}
+                  onClick={() => onEvent && onEvent("follow-up", index, item)}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+          </motion.div>
         )}
       </div>
     </div>

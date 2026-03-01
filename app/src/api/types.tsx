@@ -69,6 +69,7 @@ export type Message = {
   tool_call_id?: string;
   name?: string;
   response_type?: string;
+  follow_ups?: string[];
 };
 
 export type Model = {
