@@ -33,7 +33,7 @@ function loadLogoTextFromStore(): LogoTextConfig {
     const raw = getMemory("logo_text");
     if (raw) return JSON.parse(raw) as LogoTextConfig;
   } catch (_) {}
-  return { enabled: true, text: "UniAi", font: "Comfortaa", weight: 700, size: 18, margin: 8, letter_spacing: 0, vertical_offset: 0 };
+  return { enabled: true, text: "UniAi", font: "Inter", weight: 500, size: 16, margin: 8, letter_spacing: 0, vertical_offset: 0 };
 }
 
 export const infoSlice = createSlice({
@@ -100,9 +100,9 @@ export const infoSlice = createSlice({
         (state as any).logo_text = {
           enabled: form.logo_text.enabled ?? true,
           text: form.logo_text.text ?? "UniAi",
-          font: form.logo_text.font ?? "Comfortaa",
-          weight: form.logo_text.weight ?? 700,
-          size: form.logo_text.size ?? 18,
+          font: form.logo_text.font ?? "Inter",
+          weight: form.logo_text.weight ?? 500,
+          size: form.logo_text.size ?? 16,
           margin: form.logo_text.margin ?? 8,
           letter_spacing: form.logo_text.letter_spacing ?? 0,
           vertical_offset: form.logo_text.vertical_offset ?? 0,
@@ -165,7 +165,7 @@ export const infoBroadcastSelector = (state: RootState): BroadcastEvent =>
   state.info.broadcast;
 
 export const selectLogoText = (state: RootState): LogoTextConfig =>
-  (state.info as any).logo_text ?? { enabled: true, text: "UniAi", font: "Comfortaa", weight: 700, size: 18, margin: 8, letter_spacing: 0, vertical_offset: 0 };
+  (state.info as any).logo_text ?? { enabled: true, text: "UniAi", font: "Inter", weight: 500, size: 16, margin: 8, letter_spacing: 0, vertical_offset: 0 };
 
 export const useCurrency = (): Currency => {
   const currency = useSelector(infoCurrencySelector);

@@ -1735,3 +1735,237 @@ const isDragOver = dragOverFolderId === folder.id;
 
 - Go 编译：`go build ./...` 通过。
 - 前端类型检查：`pnpm -C app exec tsc --noEmit` 通过。
+
+---
+
+## 开发记录（2026-03-02）— 预设头像支持图片上传与 1:1 圆形裁剪
+
+### 1) 目标
+
+让「预设（Mask）」头像从仅支持 Emoji 升级为：
+
+1. 支持上传图片作为头像；
+2. 上传前支持 1:1 圆形裁剪；
+3. 现有使用 `Emoji` 组件的头像展示位可无缝兼容图片 URL。
+
+---
+
+### 2) 后端改动
+
+新增登录态上传接口：
+
+- 路由：`POST /conversation/mask/avatar/upload`
+- 文件：`manager/conversation/router.go`、`manager/conversation/api.go`
+
+接口行为：
+
+1. 仅登录用户可用（未登录返回 `authentication_error`）。
+2. 接收 `multipart/form-data` 的 `file` 字段。
+3. 校验类型：`.png/.jpg/.jpeg/.webp/.gif`。
+4. 校验大小：`<= 2MB`。
+5. 保存路径：`storage/attachments/<hash>.<ext>`。
+6. 返回 `url`：`/attachments/...`（若配置了 `notify_url`，返回完整 URL）。
+
+说明：
+- `mask.avatar` 在库里为 `VARCHAR(255)`，因此采用“上传后存 URL”而非存 base64。
+
+---
+
+### 3) 前端改动（上传与展示）
+
+#### 3.1 上传 API
+
+- 文件：`app/src/api/mask.ts`
+- 新增：`uploadMaskAvatar(file: File)`
+- 调用后端：`/conversation/mask/avatar/upload`
+
+#### 3.2 头像渲染兼容 URL
+
+- 文件：`app/src/components/Emoji.tsx`
+- 新增 `isAvatarImageSource()`：识别 URL、`/attachments/...`、`data:image/...`、`blob:`。
+- `getEmojiSource()` 逻辑调整为：
+  - 若是图片源：直接返回该地址；
+  - 否则按 emoji code 走原有 CDN 映射。
+
+效果：
+- 预设列表、会话列表、文件夹等所有 `Emoji` 使用点自动支持图片头像，无需逐页改造。
+
+---
+
+### 4) 前端改动（1:1 圆形裁剪弹窗）
+
+- 文件：`app/src/components/home/MaskEditor.tsx`
+
+新增裁剪流程：
+
+1. 点击头像上传按钮后，不直接上传，先打开裁剪弹窗。
+2. 弹窗内支持：
+   - 拖拽图片位置；
+   - 缩放（Slider）。
+3. 导出为 `512x512` PNG，并在 canvas 内按圆形裁剪（clip）。
+4. 裁剪确认后再调用上传接口，成功后写入 `mask.avatar`。
+
+关键交互：
+- 上传入口按钮叠在头像右下角；
+- 图片头像时可一键“重置为默认 Emoji”；
+- 裁剪弹窗关闭时会释放 `blob:` URL，避免内存泄漏。
+
+---
+
+### 5) 验证结果
+
+1. 前端类型检查通过：`pnpm -C app exec tsc --noEmit`。
+2. Go 代码可编译通过：`go test -vet=off ./...`。
+3. 说明：`go test ./...` 的失败来自仓库已有 `go vet` 告警（`utils/image.go`），非本次改动引入。
+
+---
+
+## 开发记录（2026-03-02）— 聊天消息操作栏位置与交互优化
+
+### 1) 目标
+
+根据产品反馈，调整消息操作入口交互，解决“入口藏在头像上不直觉”的问题，并优化显示逻辑：
+
+1. 将消息操作入口从头像区域迁移到“回答内容”和“追问建议”之间；
+2. 操作按钮改为横向排列；
+3. 最新一条消息常显，历史消息悬停显示；
+4. 历史消息未悬停时保留操作栏占位（避免布局跳动）；
+5. 区分用户消息与 AI 消息的操作集合，避免两者完全相同。
+
+---
+
+### 2) 前端改动
+
+#### 2.1 消息结构与交互
+
+文件：`app/src/components/Message.tsx`
+
+核心调整：
+
+1. 头像区域恢复为纯头像展示，不再用头像触发操作菜单；
+2. 在 `message-content` 下方新增独立操作栏；
+3. 由“下拉菜单”改为“横向图标按钮行”；
+4. 操作栏显示条件：
+   - `end === true`（最新可见消息）时常显；
+   - 其他消息在 `selected === true`（悬停）时显示；
+   - 未显示时仍渲染容器，仅隐藏内容（保留高度）；
+5. 分享页/只读场景（无 `onEvent`）不渲染操作栏。
+
+#### 2.2 最新消息判定修正
+
+文件：`app/src/components/home/ChatInterface.tsx`
+
+原逻辑以 `originalIndex === messages.length - 1` 判断“最后一条”，在存在被过滤消息（如 `tool`）时可能不准确。  
+已改为基于 `renderableMessages` 的最后一项判定，确保“最新消息常显”行为稳定。
+
+#### 2.3 样式调整
+
+文件：`app/src/assets/pages/chat.less`
+
+新增/调整：
+
+1. `message-actions-wrapper`：横向布局、最小高度占位；
+2. `visible/hidden` 状态类：
+   - `hidden` 使用 `visibility: hidden` 保留占位；
+   - `visible` 正常显示；
+3. `message-action-btn`：统一按钮尺寸、边框、hover、disabled 状态。
+
+---
+
+### 3) 操作集合拆分（用户 vs AI）
+
+文件：`app/src/components/Message.tsx`
+
+1. 用户消息操作：
+   - 编辑（edit）
+   - 复制（copy）
+   - 删除（remove）
+   - 保存（save）
+
+2. AI 消息操作：
+   - 重试/停止（restart/stop，仅最新助手消息）
+   - 复制（copy）
+   - 用于输入（use）
+   - 编辑（edit）
+   - 删除（remove）
+   - 保存（save）
+
+说明：已移除“用户消息与 AI 消息完全一致”的行为。
+
+---
+
+### 4) 验证结果
+
+1. 前端类型检查通过：`npx tsc --noEmit`。
+2. 交互符合预期：
+   - 最新消息操作栏常显；
+   - 历史消息悬停显隐；
+   - 未悬停保持空行占位；
+   - 用户与 AI 操作项已分离。
+
+---
+
+## 开发记录（2026-03-02）— 侧栏顶部品牌区与历史入口对齐优化
+
+### 1) 目标
+
+根据连续视觉反馈，优化左侧历史栏顶部布局，解决以下问题：
+
+1. 顶部渐变遮罩对“新建对话”首项存在遮挡感；
+2. 品牌区（logo/文字）与下方“新建对话/搜索对话”在尺寸和网格上不一致；
+3. “新建对话/搜索对话”视觉过大，和下方会话列表项不统一；
+4. 品牌区到首个入口之间留白过大，导致层次显得松散。
+
+---
+
+### 2) 前端改动
+
+#### 2.1 结构与滚动行为
+
+文件：`app/src/components/home/SideBar.tsx`
+
+1. 品牌区保留在顶部，不参与滚动；
+2. `SidebarAction`（新建/搜索）与分组、会话列表置于同一滚动容器；
+3. 顶部补回右侧“收起侧栏”按钮；
+4. 品牌文字样式接入 `margin`，并对字号增加最小值保护（避免历史配置过小）。
+
+#### 2.2 侧栏视觉参数与间距
+
+文件：`app/src/assets/pages/home.less`
+
+1. 顶部品牌区与入口区间距压缩：
+   - `sidebar-content` 的 `padding/gap` 收紧；
+   - `sidebar-topbar` 的 `min-height`、`margin-bottom` 收紧；
+   - `sidebar-action-wrapper` 的 `padding-top` 精细调整。
+2. 遮罩减弱与缩短：
+   - 顶部渐变遮罩高度下调为更短值；
+   - 透明度整体降低，并在 50% 后才开始衰减。
+3. 新建/搜索入口与会话列表统一：
+   - 入口图标调整为约 `14px`；
+   - 文本调整为 `13px`；
+   - 行高和容器最小高度收敛到与会话项同一视觉规格。
+4. 顶部 logo 与折叠按钮统一到同一视觉尺寸，品牌行网格与下方入口对齐。
+
+#### 2.3 默认品牌参数同步
+
+文件：
+- `app/src/conf/env.ts`
+- `app/src/store/info.ts`
+- `app/src/admin/api/system.ts`
+- `app/src/routes/admin/System.tsx`
+- `app/src/components/app/NavBar.tsx`
+
+统一品牌默认参数，避免不同入口默认值不一致：
+
+1. 默认字体：`Inter`
+2. 默认字重：`500`
+3. 默认字号：`16`
+4. 默认文字左边距：`8`
+
+---
+
+### 3) 验证结果
+
+1. `npm --prefix app run -s build` 在当前环境多次遇到 `dist` 目录 `EBUSY`（文件占用）；
+2. 使用 `npx vite build --emptyOutDir false`（`app` 目录）完成构建验证通过；
+3. 当前改动未引入新的编译错误。

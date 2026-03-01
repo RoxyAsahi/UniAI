@@ -19,18 +19,18 @@ import React, { useMemo, useRef, useState } from "react";
 import { ConversationInstance } from "@/api/types.tsx";
 import { extractMessage, filterMessage } from "@/utils/processor.ts";
 import { copyClipboard } from "@/utils/dom.ts";
-import { useEffectAsync, useAnimation } from "@/utils/hook.ts";
+import { useEffectAsync } from "@/utils/hook.ts";
 import { mobile, openWindow } from "@/utils/device.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { selectMenu, setMenu } from "@/store/menu.ts";
 import {
   ChevronRight,
   Copy,
-  Eraser,
+  PanelLeft,
   Paintbrush,
   Plus,
-  RotateCw,
   Search,
+  SquarePen,
   User,
 } from "lucide-react";
 import ConversationItem from "./ConversationItem.tsx";
@@ -45,7 +45,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog.tsx";
 import { getSharedLink, shareConversation } from "@/api/sharing.ts";
 import { Input } from "@/components/ui/input.tsx";
@@ -54,6 +53,9 @@ import { cn } from "@/components/ui/lib/utils.ts";
 import { getBooleanMemory, getNumberMemory, setBooleanMemory } from "@/utils/memory.ts";
 import { toast } from "sonner";
 import { AnimatePresence, motion } from "framer-motion";
+import { appLogo } from "@/conf/env.ts";
+import { selectLogoText } from "@/store/info.ts";
+import router from "@/router.tsx";
 
 type Operation = {
   target: ConversationInstance | null;
@@ -63,7 +65,6 @@ type Operation = {
 type SidebarActionProps = {
   search: string;
   setSearch: (search: string) => void;
-  setOperateConversation: (operation: Operation) => void;
 };
 
 type ConversationListProps = {
@@ -87,7 +88,7 @@ function SidebarSectionHeader({
   return (
     <div
       className={cn(
-        "sidebar-section-header flex items-center justify-between px-3 py-1.5 cursor-pointer hover:bg-muted/50 transition-colors group select-none mt-1",
+        "sidebar-section-header flex items-center justify-between px-2.5 py-1.5 cursor-pointer transition-colors group select-none",
       )}
       onClick={onToggle}
     >
@@ -98,7 +99,7 @@ function SidebarSectionHeader({
             expanded && "rotate-90",
           )}
         />
-        <span className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-widest truncate">
+        <span className="text-[10px] font-semibold text-muted-foreground/75 uppercase tracking-[0.14em] truncate">
           {title}
         </span>
       </div>
@@ -113,135 +114,61 @@ function SidebarSectionHeader({
 function SidebarAction({
   search,
   setSearch,
-  setOperateConversation,
 }: SidebarActionProps) {
   const { t } = useTranslation();
   const dispatch = useDispatch();
 
-  const {
-    toggle,
-    refresh: refreshAction,
-    removeAll: removeAllAction,
-  } = useConversationActions();
-  const refreshRef = useRef(null);
-  const [removeAll, setRemoveAll] = useState<boolean>(false);
+  const { toggle } = useConversationActions();
 
   const current = useSelector(selectCurrent);
   const mask = useSelector(selectMaskItem);
 
-  async function handleDeleteAll(e: React.MouseEvent<HTMLButtonElement>) {
-    e.preventDefault();
-    e.stopPropagation();
-
-    (await removeAllAction())
-      ? toast.success(t("conversation.delete-success"), {
-          description: t("conversation.delete-success-prompt"),
-        })
-      : toast.error(t("conversation.delete-failed"), {
-          description: t("conversation.delete-failed-prompt"),
-        });
-
-    await refreshAction();
-    setOperateConversation({ target: null, type: "" });
-    setRemoveAll(false);
-  }
-
   return (
     <motion.div
-      className={`sidebar-action-wrapper flex flex-col w-full h-fit px-1.5`}
+      className={`sidebar-action-wrapper flex flex-col w-full h-fit`}
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
     >
-      <motion.div
-        className={`sidebar-action`}
-        initial={{ scale: 0.9 }}
-        animate={{ scale: 1 }}
-        transition={{ duration: 0.3 }}
-      >
-        <motion.div whileTap={{ scale: 0.9 }}>
-          <Button
-            variant={`ghost`}
-            size={`icon`}
-            onClick={async () => {
-              if (current === -1 && mask) {
-                // Exit mask mode: clear mask state and remove the preflight entry
-                dispatch(clearMaskItem());
-                dispatch(removePreflight());
-                dispatch(resetNewConversation());
-              } else {
-                await toggle(-1);
-              }
-              if (mobile) dispatch(setMenu(false));
-            }}
-          >
-            {current === -1 && mask ? (
-              <Paintbrush className={`h-4 w-4`} />
-            ) : (
-              <Plus className={`h-4 w-4`} />
-            )}
-          </Button>
-        </motion.div>
-        <div className={`grow`} />
-        <AlertDialog open={removeAll} onOpenChange={setRemoveAll}>
-          <AlertDialogTrigger asChild>
-            <motion.div whileTap={{ scale: 0.9 }}>
-              <Button variant={`ghost`} size={`icon`}>
-                <Eraser className={`h-4 w-4`} />
-              </Button>
-            </motion.div>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>
-                {t("conversation.remove-all-title")}
-              </AlertDialogTitle>
-              <AlertDialogDescription>
-                {t("conversation.remove-all-description")}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>{t("conversation.cancel")}</AlertDialogCancel>
-              <Button
-                variant={`destructive`}
-                loading={true}
-                onClick={handleDeleteAll}
-                unClickable
-              >
-                {t("conversation.delete")}
-              </Button>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-        <motion.div whileTap={{ scale: 0.9 }} className={`refresh-action`}>
-          <Button
-            variant={`ghost`}
-            size={`icon`}
-            id={`refresh`}
-            ref={refreshRef}
-            onClick={() => {
-              const hook = useAnimation(refreshRef, "active", 500);
-              refreshAction().finally(hook);
-            }}
-          >
-            <RotateCw className={`h-4 w-4`} />
-          </Button>
-        </motion.div>
+      <motion.div whileTap={{ scale: 0.98 }}>
+        <Button
+          variant={`ghost`}
+          className={`sidebar-primary-entry w-full justify-start`}
+          onClick={async () => {
+            if (current === -1 && mask) {
+              dispatch(clearMaskItem());
+              dispatch(removePreflight());
+              dispatch(resetNewConversation());
+            } else {
+              await toggle(-1);
+            }
+            if (mobile) dispatch(setMenu(false));
+          }}
+        >
+          <span className="sidebar-entry-leading">
+          {current === -1 && mask ? (
+            <Paintbrush className={`sidebar-entry-icon`} />
+          ) : (
+            <SquarePen className={`sidebar-entry-icon`} />
+          )}
+          </span>
+          <span className="sidebar-entry-label">{t("new-chat")}</span>
+        </Button>
       </motion.div>
       <motion.div
-        className={`relative w-full h-fit`}
+        className={`sidebar-search-entry w-full`}
         initial={{ opacity: 0, x: -20 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.5, delay: 0.2 }}
       >
-        <Search
-          className={`absolute h-3.5 w-3.5 top-1/2 left-3.5 transform -translate-y-1/2`}
-        />
+        <span className="sidebar-entry-leading">
+          <Search className={`sidebar-entry-icon shrink-0`} />
+        </span>
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={t("conversation.search")}
-          className={`w-full pl-9`}
+          className={`sidebar-search-input sidebar-search-field w-full`}
         />
       </motion.div>
     </motion.div>
@@ -313,7 +240,7 @@ function SidebarConversationList({
 
   return (
     <>
-      <div className="flex-1 min-h-0 overflow-hidden">
+      <div className="sidebar-history-list">
       <Droppable droppableId="conversation-list">
         {(provided) => (
           <div
@@ -483,6 +410,7 @@ function SideBar() {
   const { refresh, toggle } = useConversationActions();
   const current = useSelector(selectCurrent);
   const open = useSelector(selectMenu);
+  const brandText = useSelector(selectLogoText);
   const auth = useSelector(selectAuthenticated);
   const history: ConversationInstance[] = useSelector(selectHistory);
   const [search, setSearch] = useState<string>("");
@@ -649,75 +577,114 @@ function SideBar() {
   return (
     <div className={cn("sidebar", open && "open")}>
       <div className={`sidebar-content`}>
-        <SidebarAction
-          search={search}
-          setSearch={setSearch}
-          setOperateConversation={setOperateConversation}
-        />
-        <DragDropContext onDragEnd={handleDragEnd} onDragUpdate={handleDragUpdate}>
-          {auth && (
-            <div className="sidebar-group-container flex flex-col min-h-0">
-              <SidebarSectionHeader
-                title={t("sidebar.groups")}
-                expanded={groupsExpanded}
-                onToggle={toggleGroups}
+        <div className="sidebar-topbar">
+          <div className="sidebar-brand" onClick={() => router.navigate("/")}>
+            <img className="sidebar-brand-logo" src={appLogo} alt="" />
+            {brandText.enabled && brandText.text && (
+              <span
+                className="sidebar-brand-text"
+                style={{
+                  fontFamily: brandText.font,
+                  fontWeight: brandText.weight ?? 500,
+                  fontSize: `${Math.max(brandText.size ?? 16, 16)}px`,
+                  marginLeft:
+                    typeof brandText.margin === "number"
+                      ? `${brandText.margin}px`
+                      : undefined,
+                  letterSpacing: brandText.letter_spacing
+                    ? `${brandText.letter_spacing}px`
+                    : undefined,
+                  transform: brandText.vertical_offset
+                    ? `translateY(${brandText.vertical_offset}px)`
+                    : undefined,
+                }}
               >
-                <button
-                  className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground/60 hover:text-foreground"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (!groupsExpanded) toggleGroups();
-                    setTimeout(() => folderTreeRef.current?.create(), 0);
-                  }}
-                >
-                  <Plus className="h-3 w-3" />
-                </button>
-              </SidebarSectionHeader>
-              <AnimatePresence initial={false}>
-                {groupsExpanded && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                    style={{ overflow: "hidden" }}
+                {brandText.text}
+              </span>
+            )}
+          </div>
+          <button
+            className="sidebar-topbar-toggle"
+            onClick={() => dispatch(setMenu(false))}
+            aria-label="Collapse sidebar"
+            title="Collapse sidebar"
+          >
+            <PanelLeft className="h-[18px] w-[18px]" />
+          </button>
+        </div>
+        <DragDropContext onDragEnd={handleDragEnd} onDragUpdate={handleDragUpdate}>
+          <div className="sidebar-scroll-wrap">
+            <div className="sidebar-scroll-gradient-mask" />
+            <div className="sidebar-scroll-area">
+              <SidebarAction
+                search={search}
+                setSearch={setSearch}
+              />
+              {auth && (
+                <div className="sidebar-group-container flex flex-col min-h-0">
+                  <SidebarSectionHeader
+                    title={t("sidebar.groups")}
+                    expanded={groupsExpanded}
+                    onToggle={toggleGroups}
                   >
-                    <FolderTree
-                      innerRef={folderTreeRef}
-                      conversations={history.filter((c) => c.id > 0)}
-                      currentConversation={current}
-                      onConversationClick={async (id) => await toggle(id)}
-                    />
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          )}
-
-          <div className="sidebar-history-container flex flex-col flex-1 min-h-0">
-            <SidebarSectionHeader
-              title={t("sidebar.conversations")}
-              expanded={historyExpanded}
-              onToggle={toggleHistory}
-            />
-            <AnimatePresence initial={false}>
-              {historyExpanded && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: "auto", opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                  style={{ overflow: "hidden" }}
-                  className="flex-1 min-h-0"
-                >
-                  <SidebarConversationList
-                    search={search}
-                    operateConversation={operateConversation}
-                    setOperateConversation={setOperateConversation}
-                  />
-                </motion.div>
+                    <button
+                      className="p-1 rounded-md hover:bg-muted/80 transition-colors text-muted-foreground/70 hover:text-foreground"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!groupsExpanded) toggleGroups();
+                        setTimeout(() => folderTreeRef.current?.create(), 0);
+                      }}
+                    >
+                      <Plus className="h-3 w-3" />
+                    </button>
+                  </SidebarSectionHeader>
+                  <AnimatePresence initial={false}>
+                    {groupsExpanded && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        style={{ overflow: "hidden" }}
+                      >
+                        <FolderTree
+                          innerRef={folderTreeRef}
+                          conversations={history.filter((c) => c.id > 0)}
+                          currentConversation={current}
+                          onConversationClick={async (id) => await toggle(id)}
+                        />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               )}
-            </AnimatePresence>
+
+              <div className="sidebar-history-container flex flex-col min-h-0">
+                <SidebarSectionHeader
+                  title={t("sidebar.conversations")}
+                  expanded={historyExpanded}
+                  onToggle={toggleHistory}
+                />
+                <AnimatePresence initial={false}>
+                  {historyExpanded && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      style={{ overflow: "hidden" }}
+                      className="min-h-0"
+                    >
+                      <SidebarConversationList
+                        search={search}
+                        operateConversation={operateConversation}
+                        setOperateConversation={setOperateConversation}
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </div>
           </div>
         </DragDropContext>
         {!auth && (

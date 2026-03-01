@@ -15,9 +15,9 @@ export type LogoTextConfig = {
 const defaultLogoText: LogoTextConfig = {
   enabled: true,
   text: "UniAi",
-  font: "Comfortaa",
-  weight: 700,
-  size: 18,
+  font: "Inter",
+  weight: 500,
+  size: 16,
   margin: 8,
   letter_spacing: 0,
   vertical_offset: 0,

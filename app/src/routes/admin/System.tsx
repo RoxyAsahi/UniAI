@@ -159,9 +159,9 @@ function BrandTextDialog({
   const { t } = useTranslation();
   const [open, setOpen] = useState<boolean>(false);
   const lt = data.logo_text;
-  const font = lt?.font ?? "Comfortaa";
-  const weight = lt?.weight ?? 700;
-  const size = lt?.size ?? 18;
+  const font = lt?.font ?? "Inter";
+  const weight = lt?.weight ?? 500;
+  const size = lt?.size ?? 16;
   const margin = lt?.margin ?? 8;
   const letterSpacing = (lt as any)?.letter_spacing ?? 0;
   const verticalOffset = (lt as any)?.vertical_offset ?? 0;

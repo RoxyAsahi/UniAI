@@ -204,9 +204,9 @@ export const initialSystemState: SystemProps = {
     logo_text: {
       enabled: true,
       text: "UniAi",
-      font: "Comfortaa",
-      weight: 700,
-      size: 18,
+      font: "Inter",
+      weight: 500,
+      size: 16,
       margin: 8,
       letter_spacing: 0,
       vertical_offset: 0,
@@ -386,18 +386,18 @@ export async function getConfig(): Promise<SystemResponse> {
       const lt = (data.data.general.logo_text = data.data.general.logo_text || {
         enabled: true,
         text: "UniAi",
-        font: "Comfortaa",
-        weight: 700,
-        size: 18,
+        font: "Inter",
+        weight: 500,
+        size: 16,
         margin: 8,
         letter_spacing: 0,
         vertical_offset: 0,
       });
       lt.enabled = typeof lt.enabled === "boolean" ? lt.enabled : true;
       lt.text = lt.text || "UniAi";
-      lt.font = lt.font || "Comfortaa";
-      lt.weight = typeof lt.weight === "number" && lt.weight > 0 ? lt.weight : 700;
-      lt.size = typeof lt.size === "number" && lt.size > 0 ? lt.size : 18;
+      lt.font = lt.font || "Inter";
+      lt.weight = typeof lt.weight === "number" && lt.weight > 0 ? lt.weight : 500;
+      lt.size = typeof lt.size === "number" && lt.size > 0 ? lt.size : 16;
       lt.margin = typeof lt.margin === "number" && lt.margin >= 0 ? lt.margin : 8;
       lt.letter_spacing = typeof lt.letter_spacing === "number" ? lt.letter_spacing : 0;
       lt.vertical_offset = typeof lt.vertical_offset === "number" ? lt.vertical_offset : 0;

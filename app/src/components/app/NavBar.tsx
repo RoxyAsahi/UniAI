@@ -1,52 +1,29 @@
 import "@/assets/pages/navbar.less";
-import { useTranslation } from "react-i18next";
 import { useDispatch, useSelector } from "react-redux";
 import {
   selectAuthenticated,
-  selectUsername,
   validateToken,
 } from "@/store/auth.ts";
 import { Button } from "@/components/ui/button.tsx";
-import { Menu, Settings2 } from "lucide-react";
+import { Menu } from "lucide-react";
 import { useEffect } from "react";
 import { tokenField } from "@/conf/bootstrap.ts";
 import { toggleMenu } from "@/store/menu.ts";
 import router from "@/router.tsx";
-import MenuBar from "./MenuBar.tsx";
 import { getMemory } from "@/utils/memory.ts";
-import { goAuth } from "@/utils/app.ts";
-import Avatar from "@/components/Avatar.tsx";
 import { appLogo } from "@/conf/env.ts";
 import { refreshQuota } from "@/store/quota.ts";
 import { refreshSubscription } from "@/store/subscription.ts";
 import { useEffectAsync } from "@/utils/hook.ts";
 import { AppDispatch, clearCronJobs, createCronJob } from "@/store";
-import { openDialog } from "@/store/settings.ts";
-import ThemeToggle from "@/components/ThemeProvider.tsx";
-import ProjectLink from "@/components/ProjectLink.tsx";
 import { selectLogoText } from "@/store/info.ts";
+import NavActions from "@/components/app/NavActions.tsx";
 
-function NavMenu() {
-  const username = useSelector(selectUsername);
+type NavBarProps = {
+  hidden?: boolean;
+};
 
-  return (
-    <div className={`avatar`}>
-      <MenuBar>
-        <Button
-          variant={`ghost`}
-          size={`icon-md`}
-          className={`rounded-full overflow-hidden`}
-          unClickable
-        >
-          <Avatar username={username} className={`w-9 h-9 rounded-full`} />
-        </Button>
-      </MenuBar>
-    </div>
-  );
-}
-
-function NavBar() {
-  const { t } = useTranslation();
+function NavBar({ hidden = false }: NavBarProps) {
   const dispatch: AppDispatch = useDispatch();
   const brandText = useSelector(selectLogoText);
 
@@ -68,6 +45,8 @@ function NavBar() {
 
     return () => clearCronJobs([quotaTask, planTask]);
   }, [auth]);
+
+  if (hidden) return null;
 
   return (
     <nav className={`navbar`}>
@@ -91,9 +70,12 @@ function NavBar() {
             className="logo-brand-text"
             style={{
               fontFamily: brandText.font,
-              fontWeight: brandText.weight ?? 700,
+              fontWeight: brandText.weight ?? 500,
               fontSize: `${brandText.size}px`,
-              marginLeft: `${brandText.margin}px`,
+              marginLeft:
+                typeof brandText.margin === "number"
+                  ? `${brandText.margin}px`
+                  : undefined,
               letterSpacing: brandText.letter_spacing ? `${brandText.letter_spacing}px` : undefined,
               transform: brandText.vertical_offset ? `translateY(${brandText.vertical_offset}px)` : undefined,
               display: "inline-block",
@@ -104,23 +86,7 @@ function NavBar() {
           </span>
         )}
         <div className={`grow`} />
-        <ProjectLink />
-        <ThemeToggle size="icon-md" className={`rounded-full overflow-hidden`} />
-        <Button
-          size={`icon-md`}
-          variant={`outline`}
-          className={`rounded-full overflow-hidden`}
-          onClick={() => dispatch(openDialog())}
-        >
-          <Settings2 className={`w-4 h-4`} />
-        </Button>
-        {auth ? (
-          <NavMenu />
-        ) : (
-          <Button size={`thin`} className={`rounded-full`} onClick={goAuth}>
-            {t("login")}
-          </Button>
-        )}
+        <NavActions />
       </div>
     </nav>
   );
