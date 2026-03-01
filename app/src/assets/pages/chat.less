@@ -145,6 +145,54 @@
     transition: 0.25s linear;
   }
 
+  .message-actions-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: max-content;
+    min-height: 2rem;
+    user-select: none;
+
+    &.user {
+      margin-left: auto;
+    }
+
+    &.hidden {
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    &.visible {
+      visibility: visible;
+    }
+  }
+
+  .message-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    background: hsl(var(--background));
+    color: hsl(var(--text-secondary));
+    cursor: pointer;
+    transition: 0.2s ease;
+    transition-property: color, border-color, background-color;
+
+    &:hover {
+      color: hsl(var(--text));
+      border-color: hsl(var(--border-hover));
+      background: hsl(var(--muted) / 0.4);
+    }
+
+    &:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+  }
+
   .followups-wrapper {
     width: 100%;
     border: 1px solid hsl(var(--border));

@@ -3,26 +3,30 @@ import { useTranslation } from "react-i18next";
 import { useDispatch, useSelector } from "react-redux";
 import { selectAuthenticated } from "@/store/auth.ts";
 import { themeSelector } from "@/store/globals.ts";
-import React, { useMemo, useState } from "react";
-import { saveMask } from "@/api/mask.ts";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { saveMask, uploadMaskAvatar } from "@/api/mask.ts";
 import { withNotify } from "@/api/common.ts";
 import { updateMasks, selectSupportModels } from "@/store/chat.ts";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog.tsx";
 import EditorProvider from "@/components/EditorProvider.tsx";
 import Tips from "@/components/Tips.tsx";
-import { Button } from "@/components/ui/button.tsx";
-import Emoji, { getEmojiSource } from "@/components/Emoji.tsx";
+import { Button, UploadFileButton } from "@/components/ui/button.tsx";
+import Emoji, { getEmojiSource, isAvatarImageSource } from "@/components/Emoji.tsx";
 import EmojiPicker, { Theme } from "emoji-picker-react";
 import { Input } from "@/components/ui/input.tsx";
 import { FlexibleTextarea } from "@/components/ui/textarea.tsx";
 import {
   ChevronDown,
   ChevronUp,
+  ImageUp,
+  Loader2,
   Pencil,
   Plus,
   Trash,
@@ -45,6 +49,7 @@ import {
   SelectValue,
 } from "@/components/ui/select.tsx";
 import { ScrollArea } from "@/components/ui/scroll-area.tsx";
+import { toast } from "sonner";
 
 // ─── Reducer ────────────────────────────────────────────────────────────────
 
@@ -473,6 +478,271 @@ function ModelSettingsTab({ mask, dispatch }: ModelSettingsTabProps) {
 
 // ─── PromptSettingsTab ───────────────────────────────────────────────────────
 
+const AVATAR_CROP_VIEW_SIZE = 280;
+const AVATAR_CROP_EXPORT_SIZE = 512;
+
+type AvatarCropMetrics = {
+  drawWidth: number;
+  drawHeight: number;
+  maxOffsetX: number;
+  maxOffsetY: number;
+};
+
+type AvatarCropDialogProps = {
+  open: boolean;
+  imageSrc: string;
+  submitting: boolean;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: (blob: Blob) => Promise<void>;
+};
+
+function clampValue(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function AvatarCropDialog({
+  open,
+  imageSrc,
+  submitting,
+  onOpenChange,
+  onConfirm,
+}: AvatarCropDialogProps) {
+  const { t } = useTranslation();
+  const imageRef = useRef<HTMLImageElement | null>(null);
+  const dragRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    startOffsetX: number;
+    startOffsetY: number;
+  } | null>(null);
+
+  const [zoom, setZoom] = useState(1);
+  const [dragging, setDragging] = useState(false);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [imageSize, setImageSize] = useState({
+    width: 1,
+    height: 1,
+    ready: false,
+  });
+
+  useEffect(() => {
+    if (!open) return;
+    setZoom(1);
+    setOffset({ x: 0, y: 0 });
+    setImageSize((prev) => ({ ...prev, ready: false }));
+  }, [open, imageSrc]);
+
+  const getMetrics = (nextZoom = zoom): AvatarCropMetrics => {
+    const width = Math.max(1, imageSize.width);
+    const height = Math.max(1, imageSize.height);
+    const coverScale = Math.max(
+      AVATAR_CROP_VIEW_SIZE / width,
+      AVATAR_CROP_VIEW_SIZE / height,
+    );
+    const drawWidth = width * coverScale * nextZoom;
+    const drawHeight = height * coverScale * nextZoom;
+    const maxOffsetX = Math.max(0, (drawWidth - AVATAR_CROP_VIEW_SIZE) / 2);
+    const maxOffsetY = Math.max(0, (drawHeight - AVATAR_CROP_VIEW_SIZE) / 2);
+    return { drawWidth, drawHeight, maxOffsetX, maxOffsetY };
+  };
+
+  const clampOffset = (
+    next: { x: number; y: number },
+    nextZoom = zoom,
+  ): { x: number; y: number } => {
+    const metrics = getMetrics(nextZoom);
+    return {
+      x: clampValue(next.x, -metrics.maxOffsetX, metrics.maxOffsetX),
+      y: clampValue(next.y, -metrics.maxOffsetY, metrics.maxOffsetY),
+    };
+  };
+
+  const metrics = getMetrics(zoom);
+  const imageLeft = (AVATAR_CROP_VIEW_SIZE - metrics.drawWidth) / 2 + offset.x;
+  const imageTop = (AVATAR_CROP_VIEW_SIZE - metrics.drawHeight) / 2 + offset.y;
+
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!imageSize.ready || submitting) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    dragRef.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      startOffsetX: offset.x,
+      startOffsetY: offset.y,
+    };
+    setDragging(true);
+  };
+
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragRef.current || dragRef.current.pointerId !== e.pointerId) return;
+    const dx = e.clientX - dragRef.current.startX;
+    const dy = e.clientY - dragRef.current.startY;
+    setOffset(
+      clampOffset({
+        x: dragRef.current.startOffsetX + dx,
+        y: dragRef.current.startOffsetY + dy,
+      }),
+    );
+  };
+
+  const finishDragging = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragRef.current || dragRef.current.pointerId !== e.pointerId) return;
+    dragRef.current = null;
+    setDragging(false);
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch (_) {
+      // no-op
+    }
+  };
+
+  const onZoomChange = (value: number[]) => {
+    const nextZoom = value[0] ?? 1;
+    setZoom(nextZoom);
+    setOffset((prev) => clampOffset(prev, nextZoom));
+  };
+
+  const exportCropped = async () => {
+    if (!imageRef.current || !imageSize.ready) return;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = AVATAR_CROP_EXPORT_SIZE;
+    canvas.height = AVATAR_CROP_EXPORT_SIZE;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      toast.error(t("mask.avatar.crop-failed", "裁剪失败，请重试"));
+      return;
+    }
+
+    const exportScale = Math.max(
+      AVATAR_CROP_EXPORT_SIZE / imageSize.width,
+      AVATAR_CROP_EXPORT_SIZE / imageSize.height,
+    );
+    const drawWidth = imageSize.width * exportScale * zoom;
+    const drawHeight = imageSize.height * exportScale * zoom;
+    const ratio = AVATAR_CROP_EXPORT_SIZE / AVATAR_CROP_VIEW_SIZE;
+    const x = (AVATAR_CROP_EXPORT_SIZE - drawWidth) / 2 + offset.x * ratio;
+    const y = (AVATAR_CROP_EXPORT_SIZE - drawHeight) / 2 + offset.y * ratio;
+
+    ctx.clearRect(0, 0, AVATAR_CROP_EXPORT_SIZE, AVATAR_CROP_EXPORT_SIZE);
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(
+      AVATAR_CROP_EXPORT_SIZE / 2,
+      AVATAR_CROP_EXPORT_SIZE / 2,
+      AVATAR_CROP_EXPORT_SIZE / 2,
+      0,
+      Math.PI * 2,
+    );
+    ctx.closePath();
+    ctx.clip();
+    ctx.drawImage(imageRef.current, x, y, drawWidth, drawHeight);
+    ctx.restore();
+
+    const blob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob(resolve, "image/png", 1);
+    });
+
+    if (!blob) {
+      toast.error(t("mask.avatar.crop-failed", "裁剪失败，请重试"));
+      return;
+    }
+
+    await onConfirm(blob);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(state) => !submitting && onOpenChange(state)}>
+      <DialogContent className="w-[460px] max-w-[95vw]">
+        <DialogHeader className="space-y-1">
+          <DialogTitle>{t("mask.avatar.crop", "裁剪头像")}</DialogTitle>
+          <DialogDescription>
+            {t("mask.avatar.crop-hint", "拖动调整位置，缩放后导出为 1:1 圆形头像")}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex flex-col items-center gap-4">
+          <div
+            className={cn(
+              "relative w-[280px] h-[280px] rounded-full overflow-hidden border border-border bg-muted/30 select-none touch-none",
+              dragging && "cursor-grabbing",
+              !dragging && "cursor-grab",
+            )}
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={finishDragging}
+            onPointerCancel={finishDragging}
+          >
+            {imageSrc && (
+              <img
+                ref={imageRef}
+                src={imageSrc}
+                alt=""
+                draggable={false}
+                className="absolute max-w-none pointer-events-none"
+                onLoad={(e) => {
+                  const target = e.currentTarget;
+                  const width = target.naturalWidth || 1;
+                  const height = target.naturalHeight || 1;
+                  setImageSize({ width, height, ready: true });
+                  setOffset({ x: 0, y: 0 });
+                }}
+                style={{
+                  width: `${metrics.drawWidth}px`,
+                  height: `${metrics.drawHeight}px`,
+                  left: `${imageLeft}px`,
+                  top: `${imageTop}px`,
+                }}
+              />
+            )}
+            {!imageSize.ready && (
+              <div className="absolute inset-0 grid place-items-center text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+              </div>
+            )}
+            <div className="absolute inset-0 rounded-full ring-2 ring-background/70 pointer-events-none" />
+          </div>
+
+          <div className="w-full px-2">
+            <div className="text-xs text-muted-foreground mb-1">
+              {t("mask.avatar.zoom", "缩放")}
+            </div>
+            <Slider
+              value={[zoom]}
+              min={1}
+              max={3}
+              step={0.01}
+              className="w-full"
+              classNameThumb="h-4 w-4"
+              onValueChange={onZoomChange}
+              disabled={submitting || !imageSize.ready}
+            />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={submitting}
+          >
+            {t("cancel", "取消")}
+          </Button>
+          <Button
+            onClick={exportCropped}
+            disabled={submitting || !imageSize.ready}
+          >
+            {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            {t("mask.avatar.confirm-crop", "确认裁剪并上传")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 type PromptSettingsTabProps = {
   mask: CustomMask;
   dispatch: (action: any) => void;
@@ -482,49 +752,143 @@ type PromptSettingsTabProps = {
 function PromptSettingsTab({ mask, dispatch, theme }: PromptSettingsTabProps) {
   const { t } = useTranslation();
   const [picker, setPicker] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [cropDialogOpen, setCropDialogOpen] = useState(false);
+  const [cropSource, setCropSource] = useState("");
+  const cropSourceRef = useRef("");
 
   const tokenCount = useMemo(() => {
     return Math.ceil((mask.description || "").length / 4);
   }, [mask.description]);
+
+  const resetCropper = () => {
+    if (cropSourceRef.current.startsWith("blob:")) {
+      URL.revokeObjectURL(cropSourceRef.current);
+    }
+    cropSourceRef.current = "";
+    setCropSource("");
+    setCropDialogOpen(false);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (cropSourceRef.current.startsWith("blob:")) {
+        URL.revokeObjectURL(cropSourceRef.current);
+      }
+    };
+  }, []);
+
+  const openCropper = async (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast.error(t("mask.avatar.invalid", "请选择图片文件"));
+      return;
+    }
+
+    const maxSize = 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toast.error(t("mask.avatar.max-size", "头像图片不能超过 10MB"));
+      return;
+    }
+
+    const source = URL.createObjectURL(file);
+    if (cropSourceRef.current.startsWith("blob:")) {
+      URL.revokeObjectURL(cropSourceRef.current);
+    }
+    cropSourceRef.current = source;
+    setCropSource(source);
+    setCropDialogOpen(true);
+    setPicker(false);
+  };
+
+  const uploadAvatar = async (blob: Blob) => {
+    const file = new File([blob], `mask-avatar-${Date.now()}.png`, {
+      type: "image/png",
+    });
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error(t("mask.avatar.max-size", "头像图片不能超过 2MB"));
+      return;
+    }
+
+    setUploadingAvatar(true);
+    const resp = await uploadMaskAvatar(file);
+    setUploadingAvatar(false);
+
+    if (!resp.status || !resp.url) {
+      toast.error(t("mask.avatar.upload-failed", "头像上传失败"), {
+        description: resp.error,
+      });
+      return;
+    }
+
+    dispatch({ type: "update-avatar", payload: resp.url });
+    toast.success(t("mask.avatar.upload-success", "头像上传成功"));
+    resetCropper();
+  };
 
   return (
     <ScrollArea className="flex-1 h-full">
       <div className="mask-settings-content">
         {/* Name + Avatar */}
         <div className="mask-prompt-name-row">
-          <Tips
-            trigger={
-              <Button variant="outline" size="icon" className="shrink-0 h-10 w-10">
-                <Emoji emoji={mask.avatar} className="h-6 w-6" />
-              </Button>
-            }
-            open={picker}
-            onOpenChange={setPicker}
-            align="start"
-            classNamePopup="mask-picker-dialog"
-            notHide
-          >
-            <EmojiPicker
-              className="picker"
-              height={320}
-              lazyLoadEmojis
-              skinTonesDisabled
-              theme={theme as Theme}
-              open={true}
-              searchPlaceHolder={t("mask.search-emoji")}
-              getEmojiUrl={getEmojiSource}
-              onEmojiClick={(emoji) => {
-                setPicker(false);
-                dispatch({ type: "update-avatar", payload: emoji.unified });
-              }}
-            />
-          </Tips>
+          <div className="relative shrink-0">
+            <Tips
+              trigger={
+                <Button variant="outline" size="icon" className="shrink-0 h-10 w-10 overflow-hidden">
+                  <Emoji emoji={mask.avatar} className="h-6 w-6 rounded-full object-cover" />
+                </Button>
+              }
+              open={picker}
+              onOpenChange={setPicker}
+              align="start"
+              classNamePopup="mask-picker-dialog"
+              notHide
+            >
+              <EmojiPicker
+                className="picker"
+                height={320}
+                lazyLoadEmojis
+                skinTonesDisabled
+                theme={theme as Theme}
+                open={true}
+                searchPlaceHolder={t("mask.search-emoji")}
+                getEmojiUrl={getEmojiSource}
+                onEmojiClick={(emoji) => {
+                  setPicker(false);
+                  dispatch({ type: "update-avatar", payload: emoji.unified });
+                }}
+              />
+            </Tips>
+
+            <UploadFileButton
+              variant="secondary"
+              size="icon-xs"
+              className="absolute -right-1 -bottom-1 rounded-full shadow-sm"
+              title={t("mask.avatar.upload", "上传图片")}
+              disabled={uploadingAvatar}
+              inputProps={{ accept: "image/png,image/jpeg,image/webp,image/gif" }}
+              onFileChange={openCropper}
+            >
+              <ImageUp className={cn("h-3 w-3", uploadingAvatar && "animate-pulse")} />
+            </UploadFileButton>
+          </div>
           <Input
             value={mask.name}
             placeholder={t("mask.name-placeholder", "助手名称")}
             className="flex-1"
             onChange={(e) => dispatch({ type: "update-name", payload: e.target.value })}
           />
+          {isAvatarImageSource(mask.avatar) && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-10 w-10 shrink-0"
+              title={t("mask.avatar.reset", "重置为默认 Emoji")}
+              onClick={() => dispatch({ type: "update-avatar", payload: "1f9d0" })}
+            >
+              <RotateCcw className="h-4 w-4" />
+            </Button>
+          )}
         </div>
 
         {/* System Prompt / Description */}
@@ -548,6 +912,20 @@ function PromptSettingsTab({ mask, dispatch, theme }: PromptSettingsTabProps) {
           </div>
         </div>
       </div>
+
+      <AvatarCropDialog
+        open={cropDialogOpen}
+        imageSrc={cropSource}
+        submitting={uploadingAvatar}
+        onOpenChange={(state) => {
+          if (!state) {
+            resetCropper();
+            return;
+          }
+          setCropDialogOpen(true);
+        }}
+        onConfirm={uploadAvatar}
+      />
     </ScrollArea>
   );
 }

@@ -56,8 +56,9 @@ function ChatInterface({ scrollable, setTarget }: ChatInterfaceProps) {
       <ScrollArea className="chat-content" ref={ref}>
         <AnimatePresence>
           <motion.div className="chat-messages-wrapper">
-            {renderableMessages.map((message) => {
+            {renderableMessages.map((message, renderIndex) => {
               const originalIndex = messages.findIndex(m => m === message);
+              const isLatestRenderable = renderIndex === renderableMessages.length - 1;
               
               return (
                 <motion.div
@@ -78,7 +79,7 @@ function ChatInterface({ scrollable, setTarget }: ChatInterfaceProps) {
                 >
                   <MessageSegment
                     message={message}
-                    end={originalIndex === messages.length - 1}
+                    end={isLatestRenderable}
                     onEvent={(event: string, index?: number, message?: string) => {
                       process({ id: current, event, index: index ?? originalIndex, message });
                     }}

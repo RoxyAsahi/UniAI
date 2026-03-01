@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import FileAction from "@/components/FileProvider.tsx";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { selectAuthenticated, selectInit } from "@/store/auth.ts";
 import {
   listenMessageEvent,
@@ -36,6 +36,10 @@ import { ModelArea } from "@/components/home/ModelArea.tsx";
 import { toast } from "sonner";
 import { VoiceAction } from "@/components/VoiceProvider.tsx";
 import { AnimatePresence, motion } from "framer-motion";
+import NavActions from "@/components/app/NavActions.tsx";
+import { Button } from "@/components/ui/button.tsx";
+import { Menu } from "lucide-react";
+import { selectMenu, toggleMenu } from "@/store/menu.ts";
 
 type InterfaceProps = {
   scrollable: boolean;
@@ -62,6 +66,7 @@ function fileReducer(state: FileArray, action: Record<string, any>): FileArray {
 
 function ChatWrapper() {
   const { t } = useTranslation();
+  const dispatch = useDispatch();
   const { send: sendAction } = useMessageActions();
   const process = listenMessageEvent();
   const [files, fileDispatch] = useReducer(fileReducer, []);
@@ -71,6 +76,7 @@ function ChatWrapper() {
   const current = useSelector(selectCurrent);
   const auth = useSelector(selectAuthenticated);
   const model = useSelector(selectModel);
+  const menuOpen = useSelector(selectMenu);
   const target = useRef(null);
   const align = useSelector(alignSelector);
 
@@ -81,6 +87,7 @@ function ChatWrapper() {
     (): boolean => !!getModelFromId(supportModels, model)?.auth,
     [model],
   );
+  const showTopGradient = current > 0;
 
   const [instance, setInstance] = useState<HTMLElement | null>(null);
 
@@ -158,8 +165,29 @@ function ChatWrapper() {
   }, []);
 
   return (
-    <div className={`chat-container bg-muted/25 dark:bg-muted/10`}>
+    <div className={`chat-container chat-openwebui-layout bg-muted/25 dark:bg-muted/10`}>
       <div className={`chat-wrapper`}>
+        <div className="chat-floating-navbar">
+          <div
+            className={cn("chat-top-gradient", showTopGradient && "active")}
+            aria-hidden
+          />
+          {!menuOpen && (
+            <div className="chat-floating-sidebar-toggle">
+              <Button
+                size={`icon-md`}
+                variant={`outline`}
+                className="rounded-full overflow-hidden"
+                onClick={() => dispatch(toggleMenu())}
+              >
+                <Menu className={`h-4 w-4`} />
+              </Button>
+            </div>
+          )}
+          <div className="chat-floating-actions">
+            <NavActions floating />
+          </div>
+        </div>
         <Interface setTarget={setInstance} scrollable={!visible} />
         <div className={`chat-input border-t bg-muted/25`}>
           <motion.div

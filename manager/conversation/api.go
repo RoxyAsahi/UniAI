@@ -2,11 +2,15 @@ package conversation
 
 import (
 	"chat/auth"
+	"chat/globals"
 	"chat/utils"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"net/http"
+	"path"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type ShareForm struct {
@@ -32,6 +36,12 @@ type LoadMaskResponse struct {
 type CommonMaskResponse struct {
 	Status bool   `json:"status"`
 	Error  string `json:"error"`
+}
+
+type UploadMaskAvatarResponse struct {
+	Status bool   `json:"status"`
+	Url    string `json:"url,omitempty"`
+	Error  string `json:"error,omitempty"`
 }
 
 func ListAPI(c *gin.Context) {
@@ -406,5 +416,89 @@ func SaveMaskAPI(c *gin.Context) {
 
 	c.JSON(http.StatusOK, CommonMaskResponse{
 		Status: true,
+	})
+}
+
+func UploadMaskAvatarAPI(c *gin.Context) {
+	username := utils.GetUserFromContext(c)
+	if username == "" {
+		c.JSON(http.StatusOK, UploadMaskAvatarResponse{
+			Status: false,
+			Error:  "authentication_error",
+		})
+		return
+	}
+
+	file, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusOK, UploadMaskAvatarResponse{
+			Status: false,
+			Error:  "invalid_request_error",
+		})
+		return
+	}
+
+	if file.Size <= 0 {
+		c.JSON(http.StatusOK, UploadMaskAvatarResponse{
+			Status: false,
+			Error:  "file_is_empty",
+		})
+		return
+	}
+
+	const maxSize int64 = 2 * 1024 * 1024 // 2MB
+	if file.Size > maxSize {
+		c.JSON(http.StatusOK, UploadMaskAvatarResponse{
+			Status: false,
+			Error:  "file_too_large",
+		})
+		return
+	}
+
+	ext := strings.ToLower(path.Ext(file.Filename))
+	allowed := map[string]bool{
+		".png":  true,
+		".jpg":  true,
+		".jpeg": true,
+		".webp": true,
+		".gif":  true,
+	}
+	if !allowed[ext] {
+		c.JSON(http.StatusOK, UploadMaskAvatarResponse{
+			Status: false,
+			Error:  "unsupported_image_type",
+		})
+		return
+	}
+
+	if !utils.CreateFolder("storage/attachments") {
+		c.JSON(http.StatusOK, UploadMaskAvatarResponse{
+			Status: false,
+			Error:  "failed_to_create_storage",
+		})
+		return
+	}
+
+	hash := utils.Md5Encrypt(fmt.Sprintf("%s:%s:%d:%d", username, file.Filename, file.Size, time.Now().UnixNano()))
+	filename := hash + ext
+	dst := fmt.Sprintf("storage/attachments/%s", filename)
+
+	if err := c.SaveUploadedFile(file, dst); err != nil {
+		c.JSON(http.StatusOK, UploadMaskAvatarResponse{
+			Status: false,
+			Error:  "failed_to_save_image",
+		})
+		return
+	}
+
+	base := strings.TrimSuffix(globals.NotifyUrl, "/")
+	url := fmt.Sprintf("/attachments/%s", filename)
+	if base != "" {
+		url = fmt.Sprintf("%s%s", base, url)
+	}
+
+	c.JSON(http.StatusOK, UploadMaskAvatarResponse{
+		Status: true,
+		Url:    url,
 	})
 }

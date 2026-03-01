@@ -79,14 +79,14 @@ export function FolderItem({
           ref={provided.innerRef}
           {...provided.droppableProps}
           className={cn(
-            "relative z-10 rounded-lg transition-colors min-h-[36px]",
+            "folder-shell relative z-10 rounded-lg transition-colors min-h-[36px]",
             snapshot.isDraggingOver && "bg-primary/5",
           )}
         >
           {/* Folder header */}
           <div
             className={cn(
-              "folder-header flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-muted cursor-pointer group text-sm transition-all duration-150",
+              "folder-header flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg hover:bg-muted/70 cursor-pointer group text-sm transition-all duration-150",
               isDragOver && "drag-over",
             )}
             onClick={() => !renaming && setExpanded(!expanded)}
@@ -99,7 +99,7 @@ export function FolderItem({
               <ChevronDown className="h-3 w-3 text-muted-foreground" />
             </motion.span>
 
-            <span className="h-4 w-4 shrink-0 flex items-center justify-center overflow-hidden">
+            <span className="h-4 w-4 shrink-0 flex items-center justify-center overflow-hidden folder-header-icon">
               {folder.avatar ? (
                 <span className="text-[13px] leading-none">
                   <Emoji emoji={folder.avatar} />
@@ -126,7 +126,7 @@ export function FolderItem({
                   ref={renameInputRef}
                   autoFocus
                   defaultValue={folder.name}
-                  className="flex-1 min-w-0 bg-transparent outline-none text-sm border-b border-primary"
+                  className="flex-1 min-w-0 bg-transparent outline-none text-sm border-b border-primary folder-rename-input"
                   onKeyDown={(e) => {
                     if (e.key === "Enter")
                       handleSaveRename(e.currentTarget.value);
@@ -149,7 +149,7 @@ export function FolderItem({
                 </button>
               </div>
             ) : (
-              <span className="flex-1 truncate">{folder.name}</span>
+              <span className="flex-1 truncate folder-header-title">{folder.name}</span>
             )}
 
             <FolderContextMenu
@@ -172,7 +172,7 @@ export function FolderItem({
                 exit={{ height: 0, opacity: 0 }}
                 transition={{ duration: 0.2, ease: "easeInOut" }}
                 style={{ overflow: "hidden" }}
-                className="ml-4"
+                className="folder-children ml-4"
               >
                 {/* Sub-folders */}
                 {subFolders.map((sub) => (
@@ -207,10 +207,8 @@ export function FolderItem({
                           userSelect: "none",
                         }}
                         className={cn(
-                          "flex items-center gap-1 px-2 py-1 rounded-md text-sm cursor-grab active:cursor-grabbing transition-colors group",
-                          conv.id === currentConversation
-                            ? "bg-primary/10 text-primary"
-                            : "hover:bg-muted text-muted-foreground",
+                          "conversation conversation-nested flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm cursor-grab active:cursor-grabbing transition-colors group",
+                          conv.id === currentConversation ? "active" : "",
                         )}
                         onClick={() =>
                           !dragSnapshot.isDragging &&
@@ -218,21 +216,21 @@ export function FolderItem({
                         }
                       >
                         {conv.titling ? (
-                          <div className="h-4 w-4 flex items-center justify-center shrink-0">
+                          <div className="conversation-icon h-4 w-4 flex items-center justify-center shrink-0">
                             <Loader2 className="h-3 w-3 animate-spin text-secondary" />
                           </div>
                         ) : conv.avatar ? (
-                          <div className="h-4 w-4 flex items-center justify-center shrink-0 text-xs">
+                          <div className="conversation-icon h-4 w-4 flex items-center justify-center shrink-0 text-xs">
                             <Emoji emoji={conv.avatar} />
                           </div>
                         ) : (
-                          <MessageSquare className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
+                          <MessageSquare className="conversation-icon h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
                         )}
-                        <span className="flex-1 truncate">
+                        <span className="title flex-1 truncate">
                           {conv.name || `Conversation #${conv.id}`}
                         </span>
                         <button
-                          className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0 p-0.5 rounded hover:bg-muted-foreground/20"
+                          className="id opacity-0 group-hover:opacity-100 transition-opacity shrink-0 p-1 rounded-md hover:bg-muted-foreground/20"
                           title={t("folder.move-out")}
                           onClick={(e) => {
                             e.stopPropagation();
@@ -250,7 +248,7 @@ export function FolderItem({
                 {/* Empty state */}
                 {folderConversations.length === 0 &&
                   subFolders.length === 0 && (
-                    <div className="px-2 py-1 text-xs text-muted-foreground/50 italic">
+                    <div className="px-2 py-1 text-xs text-muted-foreground/50 italic folder-empty">
                       {t("folder.drag-here")}
                     </div>
                   )}

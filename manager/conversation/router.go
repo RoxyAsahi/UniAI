@@ -20,6 +20,7 @@ func Register(app *gin.RouterGroup) {
 		router.GET("/mask/view", LoadMaskAPI)
 		router.POST("/mask/save", SaveMaskAPI)
 		router.POST("/mask/delete", DeleteMaskAPI)
+		router.POST("/mask/avatar/upload", UploadMaskAvatarAPI)
 
 		// star (timeline)
 		router.POST("/star", StarAPI)

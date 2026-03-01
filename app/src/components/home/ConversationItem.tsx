@@ -88,16 +88,16 @@ function ConversationItem({
       }}
     >
       {conversation.titling ? (
-        <div className={`h-6 w-6 flex items-center justify-center mr-1 text-base shrink-0`}>
+        <div className={`conversation-icon h-6 w-6 flex items-center justify-center mr-1 text-base shrink-0`}>
           <Loader2 className={`h-4 w-4 animate-spin text-secondary`} />
         </div>
       ) : conversation.avatar ? (
-        <div className={`h-6 w-6 flex items-center justify-center mr-1 text-base shrink-0`}>
+        <div className={`conversation-icon h-6 w-6 flex items-center justify-center mr-1 text-base shrink-0`}>
           <Emoji emoji={conversation.avatar} />
         </div>
       ) : (
         <MessageSquare
-          className={`h-6 w-6 p-1 mr-1 text-secondary bg-input/25 rounded-sm`}
+          className={`conversation-icon h-6 w-6 p-1 mr-1 text-secondary bg-input/20 rounded-md`}
         />
       )}
       <div className={`title`}>{filterMessage(conversation.name)}</div>

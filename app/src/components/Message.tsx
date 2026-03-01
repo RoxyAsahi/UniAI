@@ -22,12 +22,6 @@ import {
 } from "@/utils/dom.ts";
 import { useTranslation } from "react-i18next";
 import React, { Ref, useRef, useState } from "react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu.tsx";
 import { cn } from "@/components/ui/lib/utils.ts";
 import EditorProvider from "@/components/EditorProvider.tsx";
 import Avatar from "@/components/Avatar.tsx";
@@ -125,124 +119,6 @@ function MessageQuota({ message }: MessageQuotaProps) {
   );
 }
 
-type MessageMenuProps = {
-  children?: React.ReactNode;
-  message: Message;
-  end?: boolean;
-  index: number;
-  onEvent?: (event: string, index?: number, message?: string) => void;
-  editedMessage?: string;
-  setEditedMessage: (message: string) => void;
-  setOpen: (open: boolean) => void;
-  align?: "start" | "end";
-};
-
-function MessageMenu({
-  children,
-  align,
-  message,
-  end,
-  index,
-  onEvent,
-  editedMessage,
-  setEditedMessage,
-  setOpen,
-}: MessageMenuProps) {
-  const { t } = useTranslation();
-  const isAssistant = message.role === "assistant";
-  const notInOutput = message.end !== false;
-  const disableDelete = isAssistant && end && !notInOutput;
-  const [dropdown, setDropdown] = useState(false);
-
-  return (
-    <DropdownMenu open={dropdown} onOpenChange={setDropdown}>
-      <DropdownMenuTrigger className={cn(`flex flex-row outline-none`)}>
-        {children}
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align={align}>
-        {isAssistant && end ? (
-          <DropdownMenuItem
-            onClick={() => {
-              onEvent && onEvent(message.end !== false ? "restart" : "stop");
-              setDropdown(false);
-            }}
-          >
-            {notInOutput ? (
-              <>
-                <RotateCcw className={`h-4 w-4 mr-1.5`} />
-                {t("message.restart")}
-              </>
-            ) : (
-              <>
-                <Power className={`h-4 w-4 mr-1.5`} />
-                {t("message.stop")}
-              </>
-            )}
-          </DropdownMenuItem>
-        ) : (
-          notInOutput && (
-            <DropdownMenuItem
-              onClick={() => {
-                onEvent && onEvent("restart");
-                setDropdown(false);
-              }}
-            >
-              <RotateCcw className={`h-4 w-4 mr-1.5`} />
-              {t("message.restart")}
-            </DropdownMenuItem>
-          )
-        )}
-        <DropdownMenuItem
-          onClick={() => copyClipboard(filterMessage(message.content))}
-        >
-          <Copy className={`h-4 w-4 mr-1.5`} />
-          {t("message.copy")}
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={() => {
-            const input = document.getElementById("input") as HTMLInputElement;
-            if (input) {
-              input.value = filterMessage(message.content);
-              input.focus();
-            }
-          }}
-        >
-          <SquareMousePointer className={`h-4 w-4 mr-1.5`} />
-          {t("message.use")}
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          disabled={disableDelete}
-          onClick={() => {
-            editedMessage?.length === 0 && setEditedMessage(message.content);
-            setOpen(true);
-          }}
-        >
-          <PencilLine className={`h-4 w-4 mr-1.5`} />
-          {t("message.edit")}
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          disabled={disableDelete}
-          onClick={() => onEvent && onEvent("remove", index)}
-        >
-          <Trash className={`h-4 w-4 mr-1.5`} />
-          {t("message.remove")}
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={() =>
-            saveAsFile(
-              `message-${message.role}.txt`,
-              filterMessage(message.content),
-            )
-          }
-        >
-          <File className={`h-4 w-4 mr-1.5`} />
-          {t("message.save")}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
 function MessageContent({
   message,
   end,
@@ -250,12 +126,17 @@ function MessageContent({
   onEvent,
   selected,
   username,
+  sharing,
 }: MessageProps) {
   const { t } = useTranslation();
   const isUser = message.role === "user";
   const hasContent = message.content.length > 0;
   const isAssistant = message.role === "assistant";
   const isOutput = message.end === false;
+  const notInOutput = message.end !== false;
+  const disableDelete = isAssistant && end && !notInOutput;
+  const shouldRenderActionRow = !!onEvent && !sharing;
+  const actionRowVisible = !!end || !!selected;
   const user = useSelector(selectUsername);
 
   const [open, setOpen] = useState(false);
@@ -285,6 +166,18 @@ function MessageContent({
   };
 
   const parsedContent = message.content.length ? parseThinkContent(message.content) : null;
+  const openEditDialog = () => {
+    editedMessage?.length === 0 && setEditedMessage(message.content);
+    setOpen(true);
+  };
+
+  const useMessageAsInput = () => {
+    const input = document.getElementById("input") as HTMLInputElement;
+    if (input) {
+      input.value = filterMessage(message.content);
+      input.focus();
+    }
+  };
 
   return (
     <div className={"content-wrapper"}>
@@ -297,36 +190,17 @@ function MessageContent({
         onChange={setEditedMessage}
       />
       <div className={`message-avatar-wrapper`}>
-        {!selected ? (
-          isUser ? (
-            <Avatar
-              className={`message-avatar animate-fade-in`}
-              username={username ?? user}
-            />
-          ) : (
-            <img
-              src={appLogo}
-              alt={``}
-              className={`message-avatar animate-fade-in`}
-            />
-          )
+        {isUser ? (
+          <Avatar
+            className={`message-avatar animate-fade-in`}
+            username={username ?? user}
+          />
         ) : (
-          <MessageMenu
-            message={message}
-            end={end}
-            index={index}
-            onEvent={onEvent}
-            editedMessage={editedMessage}
-            setEditedMessage={setEditedMessage}
-            setOpen={setOpen}
-            align={isUser ? "end" : "start"}
-          >
-            <div
-              className={`message-avatar flex flex-row items-center justify-center cursor-pointer select-none opacity-0 animate-fade-in`}
-            >
-              <PencilLine className={`h-4 w-4`} />
-            </div>
-          </MessageMenu>
+          <img
+            src={appLogo}
+            alt={``}
+            className={`message-avatar animate-fade-in`}
+          />
         )}
       </div>
       <div className="message-main">
@@ -369,6 +243,133 @@ function MessageContent({
             />
           )}
         </div>
+        {shouldRenderActionRow && (
+          <div
+            className={cn(
+              "message-actions-wrapper",
+              isUser && "user",
+              actionRowVisible ? "visible" : "hidden",
+            )}
+          >
+            {isAssistant ? (
+              <>
+                {end ? (
+                  <button
+                    type="button"
+                    className="message-action-btn"
+                    title={notInOutput ? t("message.restart") : t("message.stop")}
+                    aria-label={notInOutput ? t("message.restart") : t("message.stop")}
+                    onClick={() =>
+                      onEvent && onEvent(notInOutput ? "restart" : "stop", index)
+                    }
+                  >
+                    {notInOutput ? (
+                      <RotateCcw className={`h-4 w-4`} />
+                    ) : (
+                      <Power className={`h-4 w-4`} />
+                    )}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="message-action-btn"
+                  title={t("message.copy")}
+                  aria-label={t("message.copy")}
+                  onClick={() => copyClipboard(filterMessage(message.content))}
+                >
+                  <Copy className={`h-4 w-4`} />
+                </button>
+                <button
+                  type="button"
+                  className="message-action-btn"
+                  title={t("message.use")}
+                  aria-label={t("message.use")}
+                  onClick={useMessageAsInput}
+                >
+                  <SquareMousePointer className={`h-4 w-4`} />
+                </button>
+                <button
+                  type="button"
+                  className="message-action-btn"
+                  title={t("message.edit")}
+                  aria-label={t("message.edit")}
+                  onClick={openEditDialog}
+                  disabled={disableDelete}
+                >
+                  <PencilLine className={`h-4 w-4`} />
+                </button>
+                <button
+                  type="button"
+                  className="message-action-btn"
+                  title={t("message.remove")}
+                  aria-label={t("message.remove")}
+                  onClick={() => onEvent && onEvent("remove", index)}
+                  disabled={disableDelete}
+                >
+                  <Trash className={`h-4 w-4`} />
+                </button>
+                <button
+                  type="button"
+                  className="message-action-btn"
+                  title={t("message.save")}
+                  aria-label={t("message.save")}
+                  onClick={() =>
+                    saveAsFile(
+                      `message-${message.role}.txt`,
+                      filterMessage(message.content),
+                    )
+                  }
+                >
+                  <File className={`h-4 w-4`} />
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="message-action-btn"
+                  title={t("message.edit")}
+                  aria-label={t("message.edit")}
+                  onClick={openEditDialog}
+                >
+                  <PencilLine className={`h-4 w-4`} />
+                </button>
+                <button
+                  type="button"
+                  className="message-action-btn"
+                  title={t("message.copy")}
+                  aria-label={t("message.copy")}
+                  onClick={() => copyClipboard(filterMessage(message.content))}
+                >
+                  <Copy className={`h-4 w-4`} />
+                </button>
+                <button
+                  type="button"
+                  className="message-action-btn"
+                  title={t("message.remove")}
+                  aria-label={t("message.remove")}
+                  onClick={() => onEvent && onEvent("remove", index)}
+                >
+                  <Trash className={`h-4 w-4`} />
+                </button>
+                <button
+                  type="button"
+                  className="message-action-btn"
+                  title={t("message.save")}
+                  aria-label={t("message.save")}
+                  onClick={() =>
+                    saveAsFile(
+                      `message-${message.role}.txt`,
+                      filterMessage(message.content),
+                    )
+                  }
+                >
+                  <File className={`h-4 w-4`} />
+                </button>
+              </>
+            )}
+          </div>
+        )}
         {isAssistant && message.end === true && (message.follow_ups?.length || 0) > 0 && (
           <motion.div
             className="followups-wrapper"

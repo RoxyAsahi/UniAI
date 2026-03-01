@@ -131,10 +131,13 @@ function ToolBar() {
 }
 
 function Home() {
+  const location = useLocation();
+  const chatRoute = location.pathname === "/";
+
   return (
     <ErrorBoundary>
-      <NavBar />
-      <div className={`main relative`}>
+      <NavBar hidden={chatRoute} />
+      <div className={cn(`main relative`, chatRoute && "chat-navbarless")}>
         <ToolBar />
         <Outlet />
       </div>

@@ -29,7 +29,7 @@ export function FolderContextMenu({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
-          className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-accent transition-opacity"
+          className="folder-menu-trigger opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-accent transition-opacity"
           onClick={(e) => e.stopPropagation()}
           aria-label="Folder options"
         >
