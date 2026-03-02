@@ -60,6 +60,7 @@ function SettingsDialog() {
   const hideToolbarText = useSelector(settings.hideToolbarTextSelector);
   const context = useSelector(settings.contextSelector);
   const sender = useSelector(settings.senderSelector);
+  const homePageMode = useSelector(settings.homePageModeSelector);
   const history = useSelector(settings.historySelector);
 
   const temperature = useSelector(settings.temperatureSelector);
@@ -256,6 +257,42 @@ function SettingsDialog() {
                   </div>
                 </div>
                 <div className={`settings-segment`}>
+                  <div className={`item`}>
+                    <div className={`name`}>
+                      {t("settings.homepage-mode", "Homepage Style")}
+                    </div>
+                    <div className={`grow`} />
+                    <div className={`value`}>
+                      <Select
+                        value={homePageMode}
+                        onValueChange={(value: string) =>
+                          dispatch(
+                            settings.setHomePageMode(
+                              value as settings.HomePageMode,
+                            ),
+                          )
+                        }
+                      >
+                        <SelectTrigger className={`select`}>
+                          <SelectValue
+                              placeholder={
+                                homePageMode === "default"
+                                  ? t("settings.homepage-default", "Default")
+                                  : t("settings.homepage-chat", "Chat")
+                              }
+                            />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="default">
+                            {t("settings.homepage-default", "Default")}
+                          </SelectItem>
+                          <SelectItem value="chat">
+                            {t("settings.homepage-chat", "Chat")}
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                   <div className={`item`}>
                     <div className={`name`}>{t("settings.sender")}</div>
                     <div className={`grow`} />

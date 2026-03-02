@@ -13,7 +13,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/chai2010/webp"
+	"golang.org/x/image/webp"
 )
 
 type Image struct {
@@ -60,7 +60,7 @@ func NewImage(url string) (*Image, error) {
 		if img, err = jpeg.Decode(res.Body); err != nil {
 			return nil, err
 		}
-	case "webp":
+	case ".webp", "webp":
 		if img, err = webp.Decode(res.Body); err != nil {
 			return nil, err
 		}

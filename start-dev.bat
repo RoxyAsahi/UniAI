@@ -6,14 +6,28 @@ echo   CoAI.Dev One-Click Dev Environment
 echo ===============================================
 
 :: 1. Check and Start Docker Containers
-echo [1/4] Checking Docker containers (MySQL & Redis)...
+echo [1/4] Checking Docker containers (MySQL ^& Redis)...
 docker start coai-dev-mysql 2>nul
 docker start coai-dev-redis 2>nul
 
 :: 2. Start Blob Service
 if exist "%~dp0blob-service" (
     echo [2/4] Starting Blob Service...
-    start "CoAI - Blob Service" cmd /k "cd /d %~dp0blob-service && venv\Scripts\python.exe run.py"
+    if exist "%~dp0blob-service\venv\Scripts\python.exe" (
+        start "CoAI - Blob Service" cmd /k "cd /d %~dp0blob-service && venv\Scripts\python.exe run.py"
+    ) else (
+        where py >nul 2>nul
+        if !errorlevel! == 0 (
+            start "CoAI - Blob Service" cmd /k "cd /d %~dp0blob-service && py -3 run.py"
+        ) else (
+            where python >nul 2>nul
+            if !errorlevel! == 0 (
+                start "CoAI - Blob Service" cmd /k "cd /d %~dp0blob-service && python run.py"
+            ) else (
+                echo [2/4] Python not found, skip Blob Service.
+            )
+        )
+    )
 ) else (
     echo [2/4] Blob Service directory not found, skipping.
 )

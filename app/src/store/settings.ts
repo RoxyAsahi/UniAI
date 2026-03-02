@@ -1,8 +1,10 @@
 import { createSlice } from "@reduxjs/toolkit";
 import {
   getBooleanMemory,
+  getMemory,
   getNumberMemory,
   setBooleanMemory,
+  setMemory,
   setNumberMemory,
 } from "@/utils/memory.ts";
 import { RootState } from "@/store/index.ts";
@@ -11,6 +13,7 @@ import { AppDispatch } from "@/store/index.ts";
 import { getUserSettings, saveUserSettings, UserSettings } from "@/api/auth.ts";
 
 export const sendKeys = ["Ctrl + Enter", "Enter"];
+export type HomePageMode = "default" | "chat";
 
 export const initialSettings = {
   context: true,
@@ -35,6 +38,7 @@ export const initialSettings = {
   follow_up_model: "",
   insert_follow_up_prompt: false,
   keep_follow_up_prompts: false,
+  homepage_mode: "default" as HomePageMode,
 };
 
 export const settingsSlice = createSlice({
@@ -63,6 +67,9 @@ export const settingsSlice = createSlice({
     follow_up_model: localStorage.getItem("follow_up_model") || "",
     insert_follow_up_prompt: getBooleanMemory("insert_follow_up_prompt", false),
     keep_follow_up_prompts: getBooleanMemory("keep_follow_up_prompts", false),
+    homepage_mode: ((getMemory("homepage_mode", "default") as HomePageMode) === "chat"
+      ? "chat"
+      : "default") as HomePageMode,
   },
   reducers: {
     toggleDialog: (state) => {
@@ -165,6 +172,11 @@ export const settingsSlice = createSlice({
       state.keep_follow_up_prompts = action.payload as boolean;
       setBooleanMemory("keep_follow_up_prompts", action.payload);
     },
+    setHomePageMode: (state, action) => {
+      const mode = action.payload as HomePageMode;
+      state.homepage_mode = mode === "chat" ? "chat" : "default";
+      setMemory("homepage_mode", state.homepage_mode);
+    },
     resetSettings: (state) => {
       state.context = initialSettings.context;
       state.align = initialSettings.align;
@@ -188,6 +200,7 @@ export const settingsSlice = createSlice({
       state.follow_up_model = initialSettings.follow_up_model;
       state.insert_follow_up_prompt = initialSettings.insert_follow_up_prompt;
       state.keep_follow_up_prompts = initialSettings.keep_follow_up_prompts;
+      state.homepage_mode = initialSettings.homepage_mode;
 
       setBooleanMemory("context", initialSettings.context);
       setBooleanMemory("align", initialSettings.align);
@@ -211,6 +224,7 @@ export const settingsSlice = createSlice({
       localStorage.setItem("follow_up_model", initialSettings.follow_up_model);
       setBooleanMemory("insert_follow_up_prompt", initialSettings.insert_follow_up_prompt);
       setBooleanMemory("keep_follow_up_prompts", initialSettings.keep_follow_up_prompts);
+      setMemory("homepage_mode", initialSettings.homepage_mode);
     },
   },
 });
@@ -243,6 +257,7 @@ export const {
   setFollowUpModel,
   setInsertFollowUpPrompt,
   setKeepFollowUpPrompts,
+  setHomePageMode,
 } = settingsSlice.actions;
 export default settingsSlice.reducer;
 
@@ -290,6 +305,8 @@ export const insertFollowUpPromptSelector = (state: RootState): boolean =>
   state.settings.insert_follow_up_prompt;
 export const keepFollowUpPromptsSelector = (state: RootState): boolean =>
   state.settings.keep_follow_up_prompts;
+export const homePageModeSelector = (state: RootState): HomePageMode =>
+  state.settings.homepage_mode as HomePageMode;
 
 export const fetchUserSettings = async (dispatch: AppDispatch) => {
   try {

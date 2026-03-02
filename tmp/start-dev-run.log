@@ -1,0 +1,17 @@
+===============================================
+  CoAI.Dev One-Click Dev Environment
+===============================================
+[1/4] Checking Docker containers (MySQL & Redis)...
+coai-dev-mysql
+coai-dev-redis
+[2/4] Starting Blob Service...
+[3/4] Starting Backend (air)...
+[4/4] Starting Frontend (Vite)...
+
+-----------------------------------------------
+All services are starting in separate windows
+- Frontend: http://localhost:5173
+- Backend:  http://localhost:8094
+-----------------------------------------------
+
+Press any key to continue . . . 

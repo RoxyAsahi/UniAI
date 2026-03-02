@@ -44,7 +44,7 @@ export default function NavActions({ className, floating = false }: NavActionsPr
     <div
       className={cn(
         "nav-actions flex items-center gap-2",
-        floating && "rounded-full border border-border/70 bg-background/78 px-2 py-1.5 shadow-sm backdrop-blur-md",
+        floating && "chat-floating-nav-actions",
         className,
       )}
     >

@@ -12,13 +12,15 @@ import { useSelector } from "react-redux";
 import { senderSelector } from "@/store/settings.ts";
 import { useMobile } from "@/utils/device.ts";
 import { motion, AnimatePresence } from "framer-motion";
+import { cn } from "@/components/ui/lib/utils.ts";
 
 type SendButtonProps = {
   working: boolean;
+  disabled?: boolean;
   onClick: () => any;
 };
 
-function ActionButton({ onClick, working }: SendButtonProps) {
+function ActionButton({ onClick, working, disabled }: SendButtonProps) {
   const { t } = useTranslation();
   return (
     <motion.div
@@ -28,8 +30,14 @@ function ActionButton({ onClick, working }: SendButtonProps) {
       transition={{ duration: 0.3 }}
     >
       <Button
-        className={`inline-flex flex-row items-center shrink-0 whitespace-nowrap`}
+        className={cn(
+          "inline-flex flex-row items-center shrink-0 whitespace-nowrap transition-colors duration-200",
+          !working && disabled
+            ? "bg-muted text-muted-foreground hover:bg-muted"
+            : "bg-primary text-primary-foreground hover:bg-primary/90",
+        )}
         onClick={onClick}
+        disabled={!working && disabled}
         unClickable
       >
         <div className="translate-y-[1px]">
@@ -41,7 +49,7 @@ function ActionButton({ onClick, working }: SendButtonProps) {
           >
             <Icon
               icon={working ? <PauseCircle /> : <ArrowUpCircle />}
-              className={`h-4 w-4 shrink-0`}
+              className={cn("h-4 w-4 shrink-0", !working && disabled && "opacity-70")}
             />
           </motion.div>
         </div>

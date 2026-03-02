@@ -74,6 +74,11 @@ type ModelSelectorProps = {
   side?: "left" | "right" | "top" | "bottom";
 };
 
+type ModelAreaProps = {
+  side?: "left" | "right" | "top" | "bottom";
+  mode?: "action" | "inline";
+};
+
 function formatModel(
   data: Plans,
   model: Model,
@@ -190,7 +195,7 @@ export default function ModelFinder(props: ModelSelectorProps) {
   );
 }
 
-export function ModelArea() {
+export function ModelArea({ side = "top", mode = "action" }: ModelAreaProps) {
   const { t } = useTranslation();
   const dispatch = useDispatch();
 
@@ -240,6 +245,11 @@ export function ModelArea() {
     return raw || models[0];
   }, [models, model, supportModels, modelList]);
 
+  const activeModel = useMemo(
+    () => supportModels.find((item) => item.id === model),
+    [supportModels, model],
+  );
+
   return (
     <Select
       value={current.name}
@@ -263,12 +273,31 @@ export function ModelArea() {
         dispatch(setModel(value));
       }}
     >
-      <NativeSelectTrigger>
-        <ChatAction text={t("model")}>
-          <Icon icon={current.icon} className={`h-4 w-4`} />
-        </ChatAction>
-      </NativeSelectTrigger>
-      <SelectContent>
+      {mode === "inline" ? (
+        <NativeSelectTrigger asChild>
+          <button
+            type="button"
+            className="chat-model-inline-trigger"
+            title={current.value}
+          >
+            <span className="chat-model-inline-icon">
+              {activeModel ? (
+                <ModelAvatar size={20} model={activeModel} />
+              ) : (
+                <Icon icon={current.icon} className={`h-4 w-4`} />
+              )}
+            </span>
+            <span className="chat-model-inline-label">{current.value}</span>
+          </button>
+        </NativeSelectTrigger>
+      ) : (
+        <NativeSelectTrigger>
+          <ChatAction text={t("model")}>
+            <Icon icon={current.icon} className={`h-4 w-4`} />
+          </ChatAction>
+        </NativeSelectTrigger>
+      )}
+      <SelectContent side={side}>
         <SelectGroupUI>
           <SelectLabel>{t("market.title")}</SelectLabel>
           <SelectItem value="market">

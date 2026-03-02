@@ -8,8 +8,8 @@ import {
   selectCurrent,
   selectModel,
   selectSupportModels,
-  useMessageActions,
   useMessages,
+  useMessageActions,
   useWorking,
 } from "@/store/chat.ts";
 import { formatMessage } from "@/utils/processor.ts";
@@ -22,30 +22,57 @@ import {
   TimelineAction,
   WebAction,
 } from "@/components/home/assemblies/ChatAction.tsx";
-import ChatSpace from "@/components/home/ChatSpace.tsx";
+import ChatPlaceholder from "@/components/home/ChatPlaceholder.tsx";
 import ActionButton from "@/components/home/assemblies/ActionButton.tsx";
 import ChatInput from "@/components/home/assemblies/ChatInput.tsx";
 import ScrollAction from "@/components/home/assemblies/ScrollAction.tsx";
 import { cn } from "@/components/ui/lib/utils.ts";
 import { goAuth } from "@/utils/app.ts";
 import { getModelFromId } from "@/conf/model.ts";
-import TopModelSelector from "@/components/home/TopModelSelector.tsx";
+import { ModelArea } from "@/components/home/ModelArea.tsx";
 import { toast } from "sonner";
 import { VoiceAction } from "@/components/VoiceProvider.tsx";
 import NavActions from "@/components/app/NavActions.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { Menu } from "lucide-react";
 import { selectMenu, toggleMenu } from "@/store/menu.ts";
-import { chatBubbleSelector, widescreenModeSelector } from "@/store/settings.ts";
+import {
+  chatBubbleSelector,
+  homePageModeSelector,
+  widescreenModeSelector,
+} from "@/store/settings.ts";
+import { ChatPlaceholderMode } from "@/components/home/ChatPlaceholder.tsx";
+import { ReactNode } from "react";
 
 type InterfaceProps = {
+  hasMessages: boolean;
+  mode: ChatPlaceholderMode;
   scrollable: boolean;
   setTarget: (instance: HTMLElement | null) => void;
+  input: string;
+  onSuggestionPick: (suggestion: string) => void;
+  inputPanel?: ReactNode;
 };
 
-function Interface(props: InterfaceProps) {
-  const messages = useMessages();
-  return messages.length > 0 ? <ChatInterface {...props} /> : <ChatSpace />;
+function Interface({
+  hasMessages,
+  mode,
+  input,
+  onSuggestionPick,
+  scrollable,
+  setTarget,
+  inputPanel,
+}: InterfaceProps) {
+  return hasMessages ? (
+    <ChatInterface scrollable={scrollable} setTarget={setTarget} />
+  ) : (
+    <ChatPlaceholder
+      mode={mode}
+      input={input}
+      onSuggestionPick={onSuggestionPick}
+      inputPanel={inputPanel}
+    />
+  );
 }
 
 function fileReducer(state: FileArray, action: Record<string, any>): FileArray {
@@ -73,17 +100,21 @@ function ChatWrapper() {
   const current = useSelector(selectCurrent);
   const auth = useSelector(selectAuthenticated);
   const model = useSelector(selectModel);
+  const homePageMode = useSelector(homePageModeSelector);
   const menuOpen = useSelector(selectMenu);
   const chatBubble = useSelector(chatBubbleSelector);
   const widescreenMode = useSelector(widescreenModeSelector);
   const target = useRef<HTMLTextAreaElement>(null);
 
+  const messages = useMessages();
   const working = useWorking();
   const supportModels = useSelector(selectSupportModels);
+  const hasMessages = messages.length > 0;
+  const isDefaultLanding = !hasMessages && homePageMode === "default";
 
   const requireAuth = useMemo(
     (): boolean => !!getModelFromId(supportModels, model)?.auth,
-    [model],
+    [model, supportModels],
   );
   const showTopGradient = current > 0;
 
@@ -132,6 +163,60 @@ function ChatWrapper() {
     process({ id: current, event: "stop" });
   }
 
+  function renderInputPanel(inline = false) {
+    return (
+      <div
+        className={cn(
+          "chat-input chat-input-openwebui bg-muted/25",
+          inline && "chat-input-inline",
+        )}
+      >
+        <div className="chat-input-panel">
+          <div className="chat-input-textarea-wrap">
+            <ChatInput
+              className={cn("chat-input-textarea")}
+              target={target}
+              value={input}
+              onValueChange={setInput}
+              onEnterPressed={handleSend}
+            />
+          </div>
+          <div className="chat-input-toolbar">
+            <div className="chat-input-toolbar-left">
+              {!inline && <ModelArea />}
+              {!inline && <NewConversationAction />}
+              <WebAction />
+              <FileAction files={files} dispatch={fileDispatch} />
+              <VoiceAction />
+              {!inline && <TimelineAction />}
+              {!inline && (
+                <ScrollAction
+                  visible={visible}
+                  setVisibility={setVisibility}
+                  target={instance}
+                />
+              )}
+            </div>
+            <div className="chat-input-toolbar-right">
+              <ActionButton
+                working={working}
+                disabled={!working && input.trim().length === 0}
+                onClick={() => (working ? handleCancel() : handleSend())}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function handleSuggestionPick(suggestion: string) {
+    setInput(suggestion);
+    window.requestAnimationFrame(() => {
+      target.current?.focus();
+    });
+  }
+
   useEffect(() => {
     window.addEventListener("load", () => {
       const el = document.getElementById("input");
@@ -162,6 +247,12 @@ function ChatWrapper() {
     }
   }, []);
 
+  useEffect(() => {
+    if (!hasMessages) {
+      setInstance(null);
+    }
+  }, [hasMessages]);
+
   return (
     <div
       className={cn(
@@ -189,46 +280,22 @@ function ChatWrapper() {
             </div>
           )}
           <div className="chat-floating-model-selector">
-            <TopModelSelector />
+            <ModelArea mode="inline" side="bottom" />
           </div>
           <div className="chat-floating-actions">
             <NavActions floating />
           </div>
         </div>
-        <Interface setTarget={setInstance} scrollable={!visible} />
-        <div className={`chat-input chat-input-openwebui bg-muted/25`}>
-          <div className="chat-input-panel">
-            <div className="chat-input-textarea-wrap">
-              <ChatInput
-                className={cn("chat-input-textarea")}
-                target={target}
-                value={input}
-                onValueChange={setInput}
-                onEnterPressed={handleSend}
-              />
-            </div>
-            <div className="chat-input-toolbar">
-              <div className="chat-input-toolbar-left">
-                <NewConversationAction />
-                <WebAction />
-                <FileAction files={files} dispatch={fileDispatch} />
-                <VoiceAction />
-                <TimelineAction />
-                <ScrollAction
-                  visible={visible}
-                  setVisibility={setVisibility}
-                  target={instance}
-                />
-              </div>
-              <div className="chat-input-toolbar-right">
-                <ActionButton
-                  working={working}
-                  onClick={() => (working ? handleCancel() : handleSend())}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
+        <Interface
+          hasMessages={hasMessages}
+          mode={homePageMode}
+          setTarget={setInstance}
+          scrollable={!visible}
+          input={input}
+          onSuggestionPick={handleSuggestionPick}
+          inputPanel={isDefaultLanding ? renderInputPanel(true) : undefined}
+        />
+        {!isDefaultLanding && renderInputPanel(false)}
       </div>
     </div>
   );
