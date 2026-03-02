@@ -8,12 +8,12 @@ import { useTranslation } from "react-i18next";
 import { useMemo, useState } from "react";
 import { useEffectAsync } from "@/utils/hook.ts";
 import {
-  Logger,
   listLoggers,
   downloadLogger,
   deleteLogger,
   getLoggerConsole,
 } from "@/admin/api/logger.ts";
+import type { Logger as LoggerEntry } from "@/admin/api/logger.ts";
 import { getSizeUnit } from "@/utils/base.ts";
 import { Download, RotateCcw, Terminal, Trash } from "lucide-react";
 import { withNotify } from "@/api/common.ts";
@@ -23,7 +23,7 @@ import { NumberInput } from "@/components/ui/number-input.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { cn } from "@/components/ui/lib/utils.ts";
 
-type LoggerItemProps = Logger & {
+type LoggerItemProps = LoggerEntry & {
   onUpdate: () => void;
 };
 function LoggerItem({ path, size, onUpdate }: LoggerItemProps) {
@@ -66,7 +66,7 @@ function LoggerItem({ path, size, onUpdate }: LoggerItemProps) {
 }
 
 function LoggerList() {
-  const [data, setData] = useState<Logger[]>([]);
+  const [data, setData] = useState<LoggerEntry[]>([]);
 
   const sync = async () => setData(await listLoggers());
 

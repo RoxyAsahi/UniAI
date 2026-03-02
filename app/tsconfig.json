@@ -24,8 +24,7 @@
     }
   },
   "include": [
-    "src",
-    "*.ts",
+    "src"
   ],
   "baseUrl": ".",
   "references": [{ "path": "./tsconfig.node.json" }],

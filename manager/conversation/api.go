@@ -23,6 +23,20 @@ type RenameConversationForm struct {
 	Name string `json:"name"`
 }
 
+type ConversationIDForm struct {
+	Id int64 `json:"id" binding:"required"`
+}
+
+type PinConversationForm struct {
+	Id     int64 `json:"id" binding:"required"`
+	Pinned bool  `json:"pinned"`
+}
+
+type ArchiveConversationForm struct {
+	Id       int64 `json:"id" binding:"required"`
+	Archived bool  `json:"archived"`
+}
+
 type DeleteMaskForm struct {
 	Id int `json:"id" binding:"required"`
 }
@@ -55,11 +69,22 @@ func ListAPI(c *gin.Context) {
 	}
 
 	db := utils.GetDBFromContext(c)
-	conversations := LoadConversationList(db, user.GetID(db))
+	offset, err := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	if err != nil || offset < 0 {
+		offset = 0
+	}
+	limit, err := strconv.Atoi(c.DefaultQuery("limit", "100"))
+	if err != nil || limit <= 0 {
+		limit = 100
+	}
+	conversations, hasMore := LoadConversationList(db, user.GetID(db), offset, limit)
 	c.JSON(http.StatusOK, gin.H{
-		"status":  true,
-		"message": "",
-		"data":    conversations,
+		"status":   true,
+		"message":  "",
+		"data":     conversations,
+		"offset":   offset,
+		"limit":    limit,
+		"has_more": hasMore,
 	})
 }
 
@@ -160,6 +185,139 @@ func RenameAPI(c *gin.Context) {
 		return
 	}
 	conversation.RenameConversation(db, form.Name)
+	c.JSON(http.StatusOK, gin.H{
+		"status":  true,
+		"message": "",
+	})
+}
+
+func CloneAPI(c *gin.Context) {
+	user := auth.GetUser(c)
+	if user == nil {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  false,
+			"message": "user not found",
+		})
+		return
+	}
+
+	db := utils.GetDBFromContext(c)
+	var form ConversationIDForm
+	if err := c.ShouldBindJSON(&form); err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  false,
+			"message": "invalid form",
+		})
+		return
+	}
+
+	userID := user.GetID(db)
+	if instance := LoadConversation(db, userID, form.Id); instance == nil {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  false,
+			"message": "conversation not found",
+		})
+		return
+	}
+
+	newID, err := CloneConversation(db, userID, form.Id)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  false,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":  true,
+		"message": "",
+		"data": gin.H{
+			"id": newID,
+		},
+	})
+}
+
+func PinAPI(c *gin.Context) {
+	user := auth.GetUser(c)
+	if user == nil {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  false,
+			"message": "user not found",
+		})
+		return
+	}
+
+	db := utils.GetDBFromContext(c)
+	var form PinConversationForm
+	if err := c.ShouldBindJSON(&form); err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  false,
+			"message": "invalid form",
+		})
+		return
+	}
+
+	userID := user.GetID(db)
+	if instance := LoadConversation(db, userID, form.Id); instance == nil {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  false,
+			"message": "conversation not found",
+		})
+		return
+	}
+
+	if err := SetConversationPinned(db, userID, form.Id, form.Pinned); err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  false,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":  true,
+		"message": "",
+	})
+}
+
+func ArchiveAPI(c *gin.Context) {
+	user := auth.GetUser(c)
+	if user == nil {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  false,
+			"message": "user not found",
+		})
+		return
+	}
+
+	db := utils.GetDBFromContext(c)
+	var form ArchiveConversationForm
+	if err := c.ShouldBindJSON(&form); err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  false,
+			"message": "invalid form",
+		})
+		return
+	}
+
+	userID := user.GetID(db)
+	if instance := LoadConversation(db, userID, form.Id); instance == nil {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  false,
+			"message": "conversation not found",
+		})
+		return
+	}
+
+	if err := SetConversationArchived(db, userID, form.Id, form.Archived); err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  false,
+			"message": err.Error(),
+		})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"status":  true,
 		"message": "",

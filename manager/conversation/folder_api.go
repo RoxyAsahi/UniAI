@@ -5,21 +5,26 @@ import (
 	"chat/utils"
 	"net/http"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
 type CreateFolderForm struct {
-	Name     string  `json:"name" binding:"required"`
-	Color    *string `json:"color"`
-	Avatar   *string `json:"avatar"`
-	ParentId *int    `json:"parent_id"`
+	Name       string  `json:"name" binding:"required"`
+	Color      *string `json:"color"`
+	Avatar     *string `json:"avatar"`
+	Background *string `json:"background"`
+	ParentId   *int    `json:"parent_id"`
 }
 
 type UpdateFolderForm struct {
-	Id    int     `json:"id" binding:"required"`
-	Name  string  `json:"name" binding:"required"`
-	Color *string `json:"color"`
+	Id         int     `json:"id" binding:"required"`
+	Name       string  `json:"name" binding:"required"`
+	Color      *string `json:"color"`
+	Avatar     *string `json:"avatar"`
+	Background *string `json:"background"`
 }
 
 type ReorderForm struct {
@@ -33,6 +38,21 @@ type ReorderConversationsForm struct {
 type MoveForm struct {
 	ConversationId int64 `json:"conversation_id" binding:"required"`
 	FolderId       *int  `json:"folder_id"`
+}
+
+func normalizeOptionalString(value *string) *string {
+	if value == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*value)
+	trimmed = strings.ReplaceAll(trimmed, "\u0000", "")
+	trimmed = strings.ReplaceAll(trimmed, "\r", "")
+	trimmed = strings.ReplaceAll(trimmed, "\n", "")
+	trimmed = utils.Extract(trimmed, 255, "")
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
 }
 
 func ListFoldersAPI(c *gin.Context) {
@@ -75,7 +95,15 @@ func CreateFolderAPI(c *gin.Context) {
 		}
 	}
 
-	id, err := CreateFolder(db, uid, form.Name, form.Color, form.Avatar, form.ParentId)
+	id, err := CreateFolder(
+		db,
+		uid,
+		form.Name,
+		normalizeOptionalString(form.Color),
+		normalizeOptionalString(form.Avatar),
+		normalizeOptionalString(form.Background),
+		form.ParentId,
+	)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"status": false, "message": err.Error()})
 		return
@@ -113,7 +141,15 @@ func UpdateFolderAPI(c *gin.Context) {
 	}
 
 	uid := int(user.GetID(db))
-	if err := UpdateFolder(db, uid, form.Id, form.Name, form.Color); err != nil {
+	if err := UpdateFolder(
+		db,
+		uid,
+		form.Id,
+		form.Name,
+		normalizeOptionalString(form.Color),
+		normalizeOptionalString(form.Avatar),
+		normalizeOptionalString(form.Background),
+	); err != nil {
 		c.JSON(http.StatusOK, gin.H{"status": false, "message": err.Error()})
 		return
 	}
@@ -142,6 +178,37 @@ func DeleteFolderAPI(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"status": true})
+}
+
+func ExportFolderAPI(c *gin.Context) {
+	user := auth.GetUser(c)
+	if user == nil {
+		c.JSON(http.StatusOK, gin.H{"status": false, "message": "user not found"})
+		return
+	}
+
+	db := utils.GetDBFromContext(c)
+	id, err := strconv.Atoi(c.Query("id"))
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"status": false, "message": "invalid id"})
+		return
+	}
+
+	uid := int(user.GetID(db))
+	folder, conversations, err := ExportFolderConversations(db, uid, id)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"status": false, "message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status": true,
+		"data": gin.H{
+			"folder":        folder,
+			"conversations": conversations,
+			"exported_at":   time.Now().Format(time.RFC3339),
+		},
+	})
 }
 
 func ReorderFoldersAPI(c *gin.Context) {

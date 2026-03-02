@@ -484,6 +484,8 @@
 }
 
 .sidebar {
+  --sidebar-width: 260px;
+  position: relative;
   display: flex;
   flex-shrink: 0;
   flex-direction: column;
@@ -505,7 +507,7 @@
   overflow-x: hidden;
 
   &.open {
-    width: 288px;
+    width: var(--sidebar-width);
     border-right: 1px solid hsl(var(--border) / 0.85);
     pointer-events: auto;
     opacity: 1;
@@ -523,6 +525,22 @@
     height: 100%;
     padding: 12px 6px 6px;
     gap: 2px;
+  }
+
+  .sidebar-resize-handle {
+    position: absolute;
+    top: 0;
+    right: -3px;
+    width: 6px;
+    height: 100%;
+    cursor: col-resize;
+    z-index: 6;
+    background: transparent;
+    transition: background-color 0.15s ease;
+
+    &:hover {
+      background: hsl(var(--primary) / 0.22);
+    }
   }
 
   .sidebar-topbar {

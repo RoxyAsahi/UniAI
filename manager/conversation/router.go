@@ -8,6 +8,9 @@ func Register(app *gin.RouterGroup) {
 		router.GET("/list", ListAPI)
 		router.GET("/load", LoadAPI)
 		router.POST("/rename", RenameAPI)
+		router.POST("/clone", CloneAPI)
+		router.POST("/pin", PinAPI)
+		router.POST("/archive", ArchiveAPI)
 		router.GET("/delete", DeleteAPI)
 		router.GET("/clean", CleanAPI)
 
@@ -31,6 +34,7 @@ func Register(app *gin.RouterGroup) {
 		router.GET("/folders", ListFoldersAPI)
 		router.POST("/folder", CreateFolderAPI)
 		router.POST("/folder/update", UpdateFolderAPI)
+		router.GET("/folder/export", ExportFolderAPI)
 		router.GET("/folder/delete", DeleteFolderAPI)
 		router.POST("/folder/reorder", ReorderFoldersAPI)
 		router.POST("/reorder", ReorderConversationsAPI)

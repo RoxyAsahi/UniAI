@@ -4,6 +4,15 @@ import path from "path"
 import { createHtmlPlugin } from 'vite-plugin-html' //@ts-ignore
 import { createTranslationPlugin } from "./src/translator"
 
+const backendTarget =
+  process.env.VITE_DEV_PROXY_TARGET || "http://127.0.0.1:8094";
+
+const directProxyOptions = {
+  target: backendTarget,
+  changeOrigin: true,
+  ws: true,
+};
+
 const stubLobehubPeerDeps = {
   name: 'stub-lobehub-peer-deps',
   resolveId(id: string) {
@@ -72,15 +81,24 @@ output: {
   server: {
     proxy: {
       "/api": {
-        target: "http://localhost:8094",
+        target: backendTarget,
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ""),
         ws: true,
       },
       "/v1": {
-        target: "http://localhost:8094",
+        target: backendTarget,
         changeOrigin: true,
-      }
+        ws: true,
+      },
+      "/conversation": directProxyOptions,
+      "/info": directProxyOptions,
+      "/broadcast": directProxyOptions,
+      "/mask": directProxyOptions,
+      "/record": directProxyOptions,
+      "/auth": directProxyOptions,
+      "/apikey": directProxyOptions,
+      "/admin": directProxyOptions,
     }
   }
 });

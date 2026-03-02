@@ -195,10 +195,7 @@ function SearchBar({
   );
 }
 
-type ModelProps = React.DetailedHTMLProps<
-  React.HTMLAttributes<HTMLDivElement>,
-  HTMLDivElement
-> & {
+type ModelProps = {
   model: Model;
   className?: string;
   style?: React.CSSProperties;
@@ -306,7 +303,6 @@ function ModelItem({
   showPricing,
   show1mPricing,
   index,
-  ...props
 }: ModelProps) {
   const { t } = useTranslation();
   const dispatch = useDispatch();
@@ -335,7 +331,6 @@ function ModelItem({
       className={cn("model-item rounded-md", className)}
       style={style} //@ts-ignore
       ref={forwardRef}
-      {...props}
       onClick={() => {
         if (!auth && model.auth) {
           toast(t("login-require"), {

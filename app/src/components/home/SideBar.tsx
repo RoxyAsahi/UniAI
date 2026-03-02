@@ -1,4 +1,4 @@
-import { useTranslation } from "react-i18next";
+﻿import { useTranslation } from "react-i18next";
 import { useDispatch, useSelector } from "react-redux";
 import { selectAuthenticated } from "@/store/auth.ts";
 import {
@@ -12,10 +12,9 @@ import {
   reorderHistory,
   useConversationActions,
 } from "@/store/chat.ts";
-import { DragDropContext, Droppable, Draggable, DropResult, DragUpdate } from "react-beautiful-dnd";
 import { moveConversation, reorderConversations } from "@/api/folder.ts";
 import { setDragOverFolder } from "@/store/folder";
-import React, { useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ConversationInstance } from "@/api/types.tsx";
 import { extractMessage, filterMessage } from "@/utils/processor.ts";
 import { copyClipboard } from "@/utils/dom.ts";
@@ -26,6 +25,7 @@ import { selectMenu, setMenu } from "@/store/menu.ts";
 import {
   ChevronRight,
   Copy,
+  Loader2,
   PanelLeft,
   Paintbrush,
   Plus,
@@ -50,12 +50,38 @@ import { getSharedLink, shareConversation } from "@/api/sharing.ts";
 import { Input } from "@/components/ui/input.tsx";
 import { goAuth } from "@/utils/app.ts";
 import { cn } from "@/components/ui/lib/utils.ts";
-import { getBooleanMemory, getNumberMemory, setBooleanMemory } from "@/utils/memory.ts";
+import { getBooleanMemory, getNumberMemory, setBooleanMemory, setNumberMemory } from "@/utils/memory.ts";
 import { toast } from "sonner";
 import { AnimatePresence, motion } from "framer-motion";
 import { appLogo } from "@/conf/env.ts";
 import { selectLogoText } from "@/store/info.ts";
 import router from "@/router.tsx";
+import {
+  closestCenter,
+  DndContext,
+  DragEndEvent,
+  DragOverEvent,
+  MouseSensor,
+  TouchSensor,
+  useDroppable,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
+  isConversationDndId,
+  isFolderDndId,
+  MAIN_LIST_DND_ID,
+  parseConversationDndId,
+  parseFolderDndId,
+  toConversationDndId,
+  toFolderDndId,
+} from "@/components/home/sidebarDnd";
 
 type Operation = {
   target: ConversationInstance | null;
@@ -65,13 +91,54 @@ type Operation = {
 type SidebarActionProps = {
   search: string;
   setSearch: (search: string) => void;
+  onNewChat: () => void;
+  searchInputRef: React.RefObject<HTMLInputElement>;
+  newChatAsMask: boolean;
 };
 
 type ConversationListProps = {
   search: string;
+  loadingMore: boolean;
+  hasMore: boolean;
   operateConversation: Operation;
   setOperateConversation: (operation: Operation) => void;
 };
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const SIDEBAR_MIN_WIDTH = 220;
+const SIDEBAR_MAX_WIDTH = 480;
+const SIDEBAR_DEFAULT_WIDTH = 260;
+const SIDEBAR_SWIPE_EDGE_PX = 24;
+
+function parseConversationDate(value?: string): Date | null {
+  if (!value) return null;
+  const normalized = value.includes(" ") ? value.replace(" ", "T") : value;
+  const parsed = new Date(normalized);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function getHistoryGroupLabel(item: ConversationInstance): string {
+  if (item.archived) return "Archived";
+  if (item.pinned) return "Pinned";
+
+  const date = parseConversationDate(item.updated_at);
+  if (!date) return "Older";
+
+  const today = new Date();
+  const startToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const startDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const diffDays = Math.floor((startToday.getTime() - startDate.getTime()) / DAY_MS);
+
+  if (diffDays <= 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays <= 7) return "Previous 7 days";
+  if (diffDays <= 30) return "Previous 30 days";
+
+  return new Intl.DateTimeFormat(undefined, {
+    month: "long",
+    year: "numeric",
+  }).format(date);
+}
 
 
 function SidebarSectionHeader({
@@ -114,14 +181,11 @@ function SidebarSectionHeader({
 function SidebarAction({
   search,
   setSearch,
+  onNewChat,
+  searchInputRef,
+  newChatAsMask,
 }: SidebarActionProps) {
   const { t } = useTranslation();
-  const dispatch = useDispatch();
-
-  const { toggle } = useConversationActions();
-
-  const current = useSelector(selectCurrent);
-  const mask = useSelector(selectMaskItem);
 
   return (
     <motion.div
@@ -134,19 +198,10 @@ function SidebarAction({
         <Button
           variant={`ghost`}
           className={`sidebar-primary-entry w-full justify-start`}
-          onClick={async () => {
-            if (current === -1 && mask) {
-              dispatch(clearMaskItem());
-              dispatch(removePreflight());
-              dispatch(resetNewConversation());
-            } else {
-              await toggle(-1);
-            }
-            if (mobile) dispatch(setMenu(false));
-          }}
+          onClick={onNewChat}
         >
           <span className="sidebar-entry-leading">
-          {current === -1 && mask ? (
+          {newChatAsMask ? (
             <Paintbrush className={`sidebar-entry-icon`} />
           ) : (
             <SquarePen className={`sidebar-entry-icon`} />
@@ -165,6 +220,7 @@ function SidebarAction({
           <Search className={`sidebar-entry-icon shrink-0`} />
         </span>
         <Input
+          ref={searchInputRef}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={t("conversation.search")}
@@ -175,8 +231,49 @@ function SidebarAction({
   );
 }
 
+function SortableSidebarConversationItem({
+  conversation,
+  current,
+  folders,
+  setOperateConversation,
+}: {
+  conversation: ConversationInstance;
+  current: number;
+  folders: ReturnType<typeof useFolders>;
+  setOperateConversation: (operation: Operation) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({
+      id: toConversationDndId(conversation.id),
+    });
+
+  return (
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.7 : 1,
+        userSelect: "none",
+        willChange: "transform",
+      }}
+    >
+      <ConversationItem
+        operate={setOperateConversation}
+        conversation={conversation}
+        current={current}
+        folders={folders}
+      />
+    </div>
+  );
+}
+
 function SidebarConversationList({
   search,
+  loadingMore,
+  hasMore,
   operateConversation,
   setOperateConversation,
 }: ConversationListProps) {
@@ -208,6 +305,39 @@ function SidebarConversationList({
       );
     });
   }, [history, search]);
+
+  const groupedHistory = useMemo(() => {
+    const groups: Array<{
+      label: string;
+      items: Array<{ conversation: ConversationInstance }>;
+    }> = [];
+
+    filteredHistory.forEach((conversation) => {
+      const label = getHistoryGroupLabel(conversation);
+      const latest = groups[groups.length - 1];
+      if (latest && latest.label === label) {
+        latest.items.push({ conversation });
+      } else {
+        groups.push({
+          label,
+          items: [{ conversation }],
+        });
+      }
+    });
+
+    return groups;
+  }, [filteredHistory]);
+
+  const { setNodeRef: setMainListRef, isOver: isMainListOver } = useDroppable({
+    id: MAIN_LIST_DND_ID,
+  });
+  const sortableConversationIds = useMemo(
+    () =>
+      filteredHistory
+        .filter((conversation) => conversation.id > 0)
+        .map((conversation) => toConversationDndId(conversation.id)),
+    [filteredHistory],
+  );
 
   async function handleDelete(e: React.MouseEvent<HTMLButtonElement>) {
     e.preventDefault();
@@ -241,46 +371,40 @@ function SidebarConversationList({
   return (
     <>
       <div className="sidebar-history-list">
-      <Droppable droppableId="conversation-list">
-        {(provided) => (
+        <SortableContext
+          items={sortableConversationIds}
+          strategy={verticalListSortingStrategy}
+        >
           <div
-            className={`conversation-list`}
-            ref={provided.innerRef}
-            {...provided.droppableProps}
+            className={cn("conversation-list", isMainListOver && "bg-primary/5 rounded-lg")}
+            ref={setMainListRef}
           >
             {filteredHistory.length ? (
-              filteredHistory.map((conversation, i) => (
-                <Draggable
-                  key={conversation.clientKey ?? `conv-${conversation.id}`}
-                  draggableId={String(conversation.id)}
-                  index={i}
-                >
-                  {(dragProvided, snapshot) => (
-                    <div
-                      ref={dragProvided.innerRef}
-                      {...dragProvided.draggableProps}
-                      {...dragProvided.dragHandleProps}
-                      style={{
-                        ...dragProvided.draggableProps.style,
-                        opacity: snapshot.isDragging ? 0.7 : 1,
-                        userSelect: "none",
-                        // Prevent framer-motion from fighting react-beautiful-dnd
-                        // transforms while the item is being dragged.
-                        transition: snapshot.isDragging
-                          ? "opacity 0.1s"
-                          : dragProvided.draggableProps.style?.transition,
-                        willChange: "transform",
-                      }}
-                    >
+              groupedHistory.map((group, groupIdx) => (
+                <div key={`${group.label}-${groupIdx}`} className="sidebar-history-group">
+                  <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/70">
+                    {group.label}
+                  </div>
+                  {group.items.map(({ conversation }) =>
+                    conversation.id > 0 ? (
+                      <SortableSidebarConversationItem
+                        key={conversation.clientKey ?? `conv-${conversation.id}`}
+                        conversation={conversation}
+                        current={current}
+                        folders={folders}
+                        setOperateConversation={setOperateConversation}
+                      />
+                    ) : (
                       <ConversationItem
+                        key={conversation.clientKey ?? `conv-${conversation.id}`}
                         operate={setOperateConversation}
                         conversation={conversation}
                         current={current}
                         folders={folders}
                       />
-                    </div>
+                    ),
                   )}
-                </Draggable>
+                </div>
               ))
             ) : (
               <div className={`empty text-center px-6`}>
@@ -289,10 +413,18 @@ function SidebarConversationList({
                   : t("conversation.empty-anonymous")}
               </div>
             )}
-            {provided.placeholder}
+            {loadingMore && (
+              <div className="flex items-center justify-center py-3 text-muted-foreground/80">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              </div>
+            )}
+            {!hasMore && filteredHistory.length > 0 && (
+              <div className="text-center py-2 text-[11px] text-muted-foreground/55">
+                End
+              </div>
+            )}
           </div>
-        )}
-      </Droppable>
+        </SortableContext>
       </div>
       <AlertDialog
         open={
@@ -405,10 +537,12 @@ function SidebarConversationList({
 }
 
 function SideBar() {
+  const HISTORY_PAGE_SIZE = 30;
   const { t } = useTranslation();
   const dispatch = useDispatch();
   const { refresh, toggle } = useConversationActions();
   const current = useSelector(selectCurrent);
+  const mask = useSelector(selectMaskItem);
   const open = useSelector(selectMenu);
   const brandText = useSelector(selectLogoText);
   const auth = useSelector(selectAuthenticated);
@@ -418,10 +552,33 @@ function SideBar() {
     target: null,
     type: "",
   });
+  const [historyHasMore, setHistoryHasMore] = useState(true);
+  const [historyLoadingMore, setHistoryLoadingMore] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const stored = getNumberMemory("sidebar_width", SIDEBAR_DEFAULT_WIDTH);
+    if (!Number.isFinite(stored)) return SIDEBAR_DEFAULT_WIDTH;
+    return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, stored));
+  });
 
   const [groupsExpanded, setGroupsExpanded] = useState(getBooleanMemory("sidebar_groups_expanded", true));
   const [historyExpanded, setHistoryExpanded] = useState(getBooleanMemory("sidebar_history_expanded", true));
   const folderTreeRef = useRef<FolderTreeRef>(null);
+  const scrollAreaRef = useRef<HTMLDivElement | null>(null);
+  const sidebarRef = useRef<HTMLDivElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const resizingRef = useRef(false);
+  const touchStartRef = useRef<{ x: number; y: number; open: boolean } | null>(null);
+  const sidebarWidthRef = useRef(sidebarWidth);
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 120, tolerance: 8 },
+    }),
+  );
+
+  useEffect(() => {
+    sidebarWidthRef.current = sidebarWidth;
+  }, [sidebarWidth]);
 
   const toggleGroups = () => {
     const next = !groupsExpanded;
@@ -435,147 +592,303 @@ function SideBar() {
     setBooleanMemory("sidebar_history_expanded", next);
   };
 
+  const handleNewChat = useCallback(async () => {
+    if (current === -1 && mask) {
+      dispatch(clearMaskItem());
+      dispatch(removePreflight());
+      dispatch(resetNewConversation());
+    } else {
+      await toggle(-1);
+    }
+    if (mobile) dispatch(setMenu(false));
+  }, [current, mask, dispatch, toggle]);
+
+  const getLoadedHistoryCount = () => history.filter((item) => item.id > 0).length;
+
+  const loadMoreHistory = async (append: boolean) => {
+    if (historyLoadingMore) return;
+    if (append && !historyHasMore) return;
+
+    setHistoryLoadingMore(true);
+    const page = await refresh({
+      offset: append ? getLoadedHistoryCount() : 0,
+      limit: HISTORY_PAGE_SIZE,
+      append,
+    });
+    setHistoryHasMore(page.hasMore);
+    setHistoryLoadingMore(false);
+    return page;
+  };
+
   useEffectAsync(async () => {
-    const resp = await refresh();
+    const page = await loadMoreHistory(false);
+    if (!page) {
+      setHistoryHasMore(false);
+      return;
+    }
 
     const store = getNumberMemory("history_conversation", -1);
     if (current === store) return;
     if (store === -1) return;
-    if (!resp.map((item) => item.id).includes(store)) return;
+    if (!page.items.some((item) => item.id === store)) return;
     await toggle(store);
   }, []);
 
-  const handleDragUpdate = (update: DragUpdate) => {
-    const { destination } = update;
-    if (destination?.droppableId.startsWith("folder-")) {
-      const folderId = parseInt(destination.droppableId.replace("folder-", ""));
-      dispatch(setDragOverFolder(folderId));
-    } else {
-      dispatch(setDragOverFolder(null));
+  useEffect(() => {
+    const el = scrollAreaRef.current;
+    if (!el || !open || !historyExpanded || historyLoadingMore || !historyHasMore) return;
+    if (el.scrollHeight <= el.clientHeight + 12) {
+      void loadMoreHistory(true);
+    }
+  }, [history, open, historyExpanded, historyLoadingMore, historyHasMore]);
+
+  const handleSidebarScroll = () => {
+    const el = scrollAreaRef.current;
+    if (!el || !open || !historyExpanded || historyLoadingMore || !historyHasMore) return;
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 72) {
+      void loadMoreHistory(true);
     }
   };
 
-  const handleDragEnd = async (result: DropResult) => {
-    // Always clear the drag-over highlight when drag ends
+  useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      if (!resizingRef.current || mobile) return;
+      const rect = sidebarRef.current?.getBoundingClientRect();
+      if (!rect) return;
+
+      const next = Math.min(
+        SIDEBAR_MAX_WIDTH,
+        Math.max(SIDEBAR_MIN_WIDTH, e.clientX - rect.left),
+      );
+      setSidebarWidth(next);
+    };
+
+    const onMouseUp = () => {
+      if (!resizingRef.current) return;
+      resizingRef.current = false;
+      setNumberMemory("sidebar_width", sidebarWidthRef.current);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  }, []);
+
+  useEffect(() => {
+    const onTouchStart = (e: TouchEvent) => {
+      if (!mobile || e.touches.length !== 1) return;
+
+      const touch = e.touches[0];
+      if (!open && touch.clientX > SIDEBAR_SWIPE_EDGE_PX) return;
+      touchStartRef.current = {
+        x: touch.clientX,
+        y: touch.clientY,
+        open,
+      };
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      if (!mobile || e.changedTouches.length !== 1) return;
+      const start = touchStartRef.current;
+      touchStartRef.current = null;
+      if (!start) return;
+
+      const touch = e.changedTouches[0];
+      const dx = touch.clientX - start.x;
+      const dy = touch.clientY - start.y;
+      const threshold = Math.max(Math.round(window.innerWidth / 8), 48);
+      if (Math.abs(dx) < threshold || Math.abs(dx) <= Math.abs(dy)) return;
+
+      if (!start.open && start.x <= SIDEBAR_SWIPE_EDGE_PX && dx > 0) {
+        dispatch(setMenu(true));
+        return;
+      }
+
+      if (start.open && dx < 0) {
+        dispatch(setMenu(false));
+      }
+    };
+
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchend", onTouchEnd, { passive: true });
+    return () => {
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchend", onTouchEnd);
+    };
+  }, [dispatch, open]);
+
+  useEffect(() => {
+    const isEditable = (target: EventTarget | null) => {
+      if (!(target instanceof HTMLElement)) return false;
+      const tag = target.tagName.toLowerCase();
+      return (
+        target.isContentEditable ||
+        tag === "input" ||
+        tag === "textarea" ||
+        tag === "select"
+      );
+    };
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      const command = e.metaKey || e.ctrlKey;
+      if (!command) return;
+
+      if (key === "k") {
+        e.preventDefault();
+        if (!open) dispatch(setMenu(true));
+        requestAnimationFrame(() => searchInputRef.current?.focus());
+        return;
+      }
+
+      if (key === "n" && e.shiftKey && !isEditable(e.target)) {
+        e.preventDefault();
+        void handleNewChat();
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [dispatch, handleNewChat, open]);
+
+  const handleSidebarResizeStart = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (mobile || !open) return;
+    e.preventDefault();
+    e.stopPropagation();
+    resizingRef.current = true;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  };
+
+  const resetSidebarWidth = () => {
+    setSidebarWidth(SIDEBAR_DEFAULT_WIDTH);
+    setNumberMemory("sidebar_width", SIDEBAR_DEFAULT_WIDTH);
+  };
+
+  const sidebarStyle = mobile
+    ? undefined
+    : ({ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties);
+
+  const getConversationContainerId = useCallback(
+    (conversationId: number): string | null => {
+      const target = history.find((conversation) => conversation.id === conversationId);
+      if (!target) return null;
+      return target.folder_id ? toFolderDndId(target.folder_id) : MAIN_LIST_DND_ID;
+    },
+    [history],
+  );
+
+  const getContainerConversationIds = useCallback(
+    (containerId: string, excludeId?: number): number[] => {
+      const folderId = parseFolderDndId(containerId);
+      return history
+        .filter((conversation) => {
+          if (conversation.id <= 0) return false;
+          if (excludeId && conversation.id === excludeId) return false;
+          if (folderId !== null) return conversation.folder_id === folderId;
+          return !conversation.folder_id;
+        })
+        .map((conversation) => conversation.id);
+    },
+    [history],
+  );
+
+  const resolveDropTarget = useCallback(
+    (
+      overId: string | null,
+    ): { containerId: string; overConversationId: number | null } | null => {
+      if (!overId) return null;
+      if (overId === MAIN_LIST_DND_ID || isFolderDndId(overId)) {
+        return { containerId: overId, overConversationId: null };
+      }
+      if (!isConversationDndId(overId)) return null;
+
+      const overConversationId = parseConversationDndId(overId);
+      if (overConversationId === null) return null;
+      const containerId = getConversationContainerId(overConversationId);
+      if (!containerId) return null;
+
+      return { containerId, overConversationId };
+    },
+    [getConversationContainerId],
+  );
+
+  const handleDragOver = (event: DragOverEvent) => {
+    const overId = event.over ? String(event.over.id) : null;
+    const target = resolveDropTarget(overId);
+    if (!target) {
+      dispatch(setDragOverFolder(null));
+      return;
+    }
+    dispatch(setDragOverFolder(parseFolderDndId(target.containerId)));
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
     dispatch(setDragOverFolder(null));
 
-    const { source, destination, draggableId } = result;
-    if (!destination) return;
+    const activeConversationId = parseConversationDndId(String(event.active.id));
+    if (activeConversationId === null) return;
+
+    const sourceContainerId = getConversationContainerId(activeConversationId);
+    if (!sourceContainerId) return;
+
+    const overId = event.over ? String(event.over.id) : null;
+    const target = resolveDropTarget(overId);
+    if (!target) return;
+
+    const { containerId: destinationContainerId, overConversationId } = target;
     if (
-      source.droppableId === destination.droppableId &&
-      source.index === destination.index
-    )
+      sourceContainerId === destinationContainerId &&
+      overConversationId === activeConversationId
+    ) {
       return;
-
-    const convId = parseInt(draggableId);
-    const srcIsFolder = source.droppableId.startsWith("folder-");
-    const dstIsFolder = destination.droppableId.startsWith("folder-");
-
-    if (dstIsFolder) {
-      const dstFolderId = parseInt(destination.droppableId.replace("folder-", ""));
-      const srcFolderId = srcIsFolder
-        ? parseInt(source.droppableId.replace("folder-", ""))
-        : null;
-
-      if (srcFolderId === dstFolderId) {
-        // Intra-folder reorder — client-side then persist
-        const folderConvs = history.filter(
-          (c) => c.id > 0 && c.folder_id === dstFolderId,
-        );
-        const insertBeforeConv =
-          destination.index > source.index
-            ? folderConvs[destination.index + 1]
-            : folderConvs[destination.index];
-
-        dispatch(
-          reorderHistory({
-            movedId: convId,
-            insertBeforeId: insertBeforeConv?.id ?? null,
-          }),
-        );
-
-        // Persistent reorder
-        const items = [...folderConvs];
-        const [moved] = items.splice(source.index, 1);
-        items.splice(destination.index, 0, moved);
-        const orders: Record<number, number> = {};
-        items.forEach((item, index) => {
-          orders[item.id] = index;
-        });
-        await reorderConversations(orders);
-      } else {
-        // Cross-folder move OR main-list → folder
-        const ok = await moveConversation(convId, dstFolderId);
-        if (ok) {
-          dispatch(updateConversationFolder({ id: convId, folderId: dstFolderId }));
-          
-          // Persistent reorder for the target folder: include the new item
-          const targetFolderConvs = history.filter(
-            (c) => c.id > 0 && c.folder_id === dstFolderId && c.id !== convId
-          );
-          const movedItem = history.find(c => c.id === convId);
-          if (movedItem) {
-            const items = [...targetFolderConvs];
-            items.splice(destination.index, 0, movedItem);
-            const orders: Record<number, number> = {};
-            items.forEach((item, index) => {
-              orders[item.id] = index;
-            });
-            await reorderConversations(orders);
-          }
-        }
-      }
-    } else if (destination.droppableId === "conversation-list") {
-      if (srcIsFolder) {
-        // Folder → main list: move out of folder
-        const ok = await moveConversation(convId, null);
-        if (ok) {
-          dispatch(updateConversationFolder({ id: convId, folderId: null }));
-          
-          // Persistent reorder for the main list: include the new item
-          const noFolderHistory = history.filter(
-            (c) => c.id > 0 && !c.folder_id && c.id !== convId
-          );
-          const movedItem = history.find(c => c.id === convId);
-          if (movedItem) {
-            const items = [...noFolderHistory];
-            items.splice(destination.index, 0, movedItem);
-            const orders: Record<number, number> = {};
-            items.forEach((item, index) => {
-              orders[item.id] = index;
-            });
-            await reorderConversations(orders);
-          }
-        }
-      } else {
-        // Main list → main list: reorder
-        const noFolderHistory = history.filter((c) => c.id > 0 && !c.folder_id);
-        const insertBeforeConv =
-          destination.index > source.index
-            ? noFolderHistory[destination.index + 1]
-            : noFolderHistory[destination.index];
-        dispatch(
-          reorderHistory({
-            movedId: convId,
-            insertBeforeId: insertBeforeConv?.id ?? null,
-          }),
-        );
-
-        // Persistent reorder
-        const items = [...noFolderHistory];
-        const [moved] = items.splice(source.index, 1);
-        items.splice(destination.index, 0, moved);
-        const orders: Record<number, number> = {};
-        items.forEach((item, index) => {
-          orders[item.id] = index;
-        });
-        await reorderConversations(orders);
-      }
     }
+
+    const sourceFolderId = parseFolderDndId(sourceContainerId);
+    const destinationFolderId = parseFolderDndId(destinationContainerId);
+    if (sourceFolderId !== destinationFolderId) {
+      const ok = await moveConversation(activeConversationId, destinationFolderId);
+      if (!ok) return;
+      dispatch(updateConversationFolder({ id: activeConversationId, folderId: destinationFolderId }));
+    }
+
+    dispatch(
+      reorderHistory({
+        movedId: activeConversationId,
+        insertBeforeId: overConversationId ?? null,
+      }),
+    );
+
+    const reordered = getContainerConversationIds(
+      destinationContainerId,
+      activeConversationId,
+    );
+    if (overConversationId !== null) {
+      const idx = reordered.indexOf(overConversationId);
+      if (idx >= 0) reordered.splice(idx, 0, activeConversationId);
+      else reordered.push(activeConversationId);
+    } else {
+      reordered.push(activeConversationId);
+    }
+
+    const orders: Record<number, number> = {};
+    reordered.forEach((id, index) => {
+      orders[id] = index;
+    });
+    await reorderConversations(orders);
   };
 
   return (
-    <div className={cn("sidebar", open && "open")}>
+    <div
+      ref={sidebarRef}
+      className={cn("sidebar", open && "open")}
+      style={sidebarStyle}
+    >
       <div className={`sidebar-content`}>
         <div className="sidebar-topbar">
           <div className="sidebar-brand" onClick={() => router.navigate("/")}>
@@ -612,13 +925,25 @@ function SideBar() {
             <PanelLeft className="h-[18px] w-[18px]" />
           </button>
         </div>
-        <DragDropContext onDragEnd={handleDragEnd} onDragUpdate={handleDragUpdate}>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
+        >
           <div className="sidebar-scroll-wrap">
             <div className="sidebar-scroll-gradient-mask" />
-            <div className="sidebar-scroll-area">
+            <div
+              ref={scrollAreaRef}
+              className="sidebar-scroll-area"
+              onScroll={handleSidebarScroll}
+            >
               <SidebarAction
                 search={search}
                 setSearch={setSearch}
+                onNewChat={() => void handleNewChat()}
+                searchInputRef={searchInputRef}
+                newChatAsMask={current === -1 && !!mask}
               />
               {auth && (
                 <div className="sidebar-group-container flex flex-col min-h-0">
@@ -677,6 +1002,8 @@ function SideBar() {
                     >
                       <SidebarConversationList
                         search={search}
+                        loadingMore={historyLoadingMore}
+                        hasMore={historyHasMore}
                         operateConversation={operateConversation}
                         setOperateConversation={setOperateConversation}
                       />
@@ -686,7 +1013,7 @@ function SideBar() {
               </div>
             </div>
           </div>
-        </DragDropContext>
+        </DndContext>
         {!auth && (
           <Button
             className={`login-action min-h-10 h-max`}
@@ -697,8 +1024,17 @@ function SideBar() {
           </Button>
         )}
       </div>
+      {open && !mobile && (
+        <div
+          className="sidebar-resize-handle"
+          onMouseDown={handleSidebarResizeStart}
+          onDoubleClick={resetSidebarWidth}
+          aria-hidden="true"
+        />
+      )}
     </div>
   );
 }
 
 export default SideBar;
+

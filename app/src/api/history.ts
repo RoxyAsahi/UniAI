@@ -7,23 +7,67 @@ import { getErrorMessage } from "@/utils/base.ts";
 import { VirtualWebSearchRole, VirtualRolePrefix, Message } from "./types.tsx";
 import { formatToolCallResult } from "@/api/plugin.ts";
 
-export async function getConversationList(): Promise<ConversationInstance[]> {
+export type ConversationListPage = {
+  items: ConversationInstance[];
+  hasMore: boolean;
+  offset: number;
+  limit: number;
+};
+
+type ConversationListQuery = {
+  offset?: number;
+  limit?: number;
+};
+
+export async function getConversationListPage(
+  query: ConversationListQuery = {},
+): Promise<ConversationListPage> {
+  const offset = Math.max(0, query.offset ?? 0);
+  const limit = Math.max(1, query.limit ?? 100);
+
   try {
-    const resp = await axios.get("/conversation/list");
-    return (
-      resp.data.status ? resp.data.data || [] : []
+    const resp = await axios.get("/conversation/list", {
+      params: { offset, limit },
+    });
+
+    const data = resp.data;
+    const items = (
+      data?.status ? (Array.isArray(data.data) ? data.data : data.data?.items || []) : []
     ) as ConversationInstance[];
+    const hasMore =
+      typeof data?.has_more === "boolean"
+        ? data.has_more
+        : typeof data?.data?.has_more === "boolean"
+          ? data.data.has_more
+          : items.length >= limit;
+
+    return {
+      items,
+      hasMore,
+      offset,
+      limit,
+    };
   } catch (e) {
     console.warn(e);
-    return [];
+    return {
+      items: [],
+      hasMore: false,
+      offset,
+      limit,
+    };
   }
+}
+
+export async function getConversationList(): Promise<ConversationInstance[]> {
+  const page = await getConversationListPage();
+  return page.items;
 }
 
 export async function updateConversationList(
   dispatch: AppDispatch,
 ): Promise<void> {
-  const resp = await getConversationList();
-  dispatch(setHistory(resp));
+  const page = await getConversationListPage();
+  dispatch(setHistory(page.items));
 }
 
 export async function loadConversation(
@@ -127,6 +171,42 @@ export async function renameConversation(
 ): Promise<CommonResponse> {
   try {
     const resp = await axios.post("/conversation/rename", { id, name });
+    return resp.data as CommonResponse;
+  } catch (e) {
+    console.warn(e);
+    return { status: false, error: getErrorMessage(e) };
+  }
+}
+
+export async function cloneConversation(id: number): Promise<CommonResponse> {
+  try {
+    const resp = await axios.post("/conversation/clone", { id });
+    return resp.data as CommonResponse;
+  } catch (e) {
+    console.warn(e);
+    return { status: false, error: getErrorMessage(e) };
+  }
+}
+
+export async function pinConversation(
+  id: number,
+  pinned: boolean,
+): Promise<CommonResponse> {
+  try {
+    const resp = await axios.post("/conversation/pin", { id, pinned });
+    return resp.data as CommonResponse;
+  } catch (e) {
+    console.warn(e);
+    return { status: false, error: getErrorMessage(e) };
+  }
+}
+
+export async function archiveConversation(
+  id: number,
+  archived: boolean,
+): Promise<CommonResponse> {
+  try {
+    const resp = await axios.post("/conversation/archive", { id, archived });
     return resp.data as CommonResponse;
   } catch (e) {
     console.warn(e);

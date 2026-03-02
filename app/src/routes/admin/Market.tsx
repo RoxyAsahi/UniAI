@@ -53,11 +53,20 @@ import { toast } from "sonner";
 import { useChannelModels, useSupportModels } from "@/admin/hook.tsx";
 import Icon from "@/components/utils/Icon.tsx";
 import {
-  DragDropContext,
-  Draggable,
-  Droppable,
-  DropResult,
-} from "react-beautiful-dnd";
+  closestCenter,
+  DndContext,
+  DragEndEvent,
+  MouseSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Label } from "@/components/ui/label.tsx";
 import { uploadResource } from "@/admin/api/system.ts";
 import { withNotify } from "@/api/common.ts";
@@ -784,6 +793,51 @@ type MarketGroupProps = {
   channelModels: string[];
 };
 
+type SortableMarketItemProps = MarketGroupProps & {
+  model: Model;
+  index: number;
+};
+
+function SortableMarketItem({
+  model,
+  form,
+  dispatch,
+  stacked,
+  channelModels,
+  index,
+}: SortableMarketItemProps) {
+  const id = model.seed || `market-model-${index}`;
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  return (
+    <MarketItem
+      key={id}
+      model={model}
+      form={form}
+      stacked={stacked}
+      dispatch={dispatch}
+      index={index}
+      channelModels={channelModels}
+      forwardRef={setNodeRef}
+      {...attributes}
+      {...listeners}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.68 : 1,
+        willChange: "transform",
+      }}
+    />
+  );
+}
+
 function MarketGroup({
   form,
   dispatch,
@@ -791,26 +845,15 @@ function MarketGroup({
   channelModels,
 }: MarketGroupProps) {
   return form.map((model, index) => (
-    <Draggable
-      key={model.seed as string}
-      draggableId={model.seed as string}
+    <SortableMarketItem
+      key={model.seed || `market-model-${index}`}
+      model={model}
+      form={form}
+      dispatch={dispatch}
+      stacked={stacked}
+      channelModels={channelModels}
       index={index}
-    >
-      {(provided) => (
-        <MarketItem
-          key={index}
-          model={model}
-          form={form}
-          stacked={stacked}
-          dispatch={dispatch}
-          index={index}
-          channelModels={channelModels}
-          forwardRef={provided.innerRef}
-          {...provided.draggableProps}
-          {...provided.dragHandleProps}
-        />
-      )}
-    </Draggable>
+    />
   ));
 }
 
@@ -1003,6 +1046,12 @@ function Market() {
 
   const [form, dispatch] = useReducer(reducer, []);
   const [open, setOpen] = useState<boolean>(false);
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 120, tolerance: 8 },
+    }),
+  );
 
   const { supportModels, update: updateSuppportModels } = useSupportModels(
     (state, data) => {
@@ -1031,17 +1080,18 @@ function Market() {
 
   const sync = async (): Promise<void> => {};
 
-  const onDragEnd = (result: DropResult) => {
-    const { destination, source } = result;
-    if (
-      !destination ||
-      destination.index === source.index ||
-      destination.index === -1
-    )
-      return;
+  const sortableIds = useMemo(
+    () => form.map((model, index) => model.seed || `market-model-${index}`),
+    [form],
+  );
 
-    const from = source.index;
-    const to = destination.index;
+  const onDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const from = sortableIds.indexOf(String(active.id));
+    const to = sortableIds.indexOf(String(over.id));
+    if (from < 0 || to < 0 || from === to) return;
 
     dispatch({
       type: "move",
@@ -1161,30 +1211,31 @@ function Market() {
               });
             }}
           />
-          <DragDropContext onDragEnd={onDragEnd}>
-            <Droppable droppableId={`market-list`}>
-              {(provided) => (
-                <div
-                  className={`market-list cursor-default`}
-                  {...provided.droppableProps}
-                  ref={provided.innerRef}
-                >
-                  {form.length > 0 ? (
-                    <MarketGroup
-                      form={form}
-                      dispatch={dispatch}
-                      stacked={stacked}
-                      channelModels={channelModels}
-                    />
-                  ) : (
-                    <p className={`align-center text-sm empty`}>
-                      {t("admin.empty")}
-                    </p>
-                  )}
-                </div>
-              )}
-            </Droppable>
-          </DragDropContext>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={onDragEnd}
+          >
+            <SortableContext
+              items={sortableIds}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className={`market-list cursor-default`}>
+                {form.length > 0 ? (
+                  <MarketGroup
+                    form={form}
+                    dispatch={dispatch}
+                    stacked={stacked}
+                    channelModels={channelModels}
+                  />
+                ) : (
+                  <p className={`align-center text-sm empty`}>
+                    {t("admin.empty")}
+                  </p>
+                )}
+              </div>
+            </SortableContext>
+          </DndContext>
           <div className={`market-footer flex flex-row items-center mt-4`}>
             <div className={`grow`} />
             <Button

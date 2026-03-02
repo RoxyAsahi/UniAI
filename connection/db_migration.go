@@ -80,10 +80,32 @@ func doMigration(db *sql.DB) error {
 		return err
 	}
 
+	if err := execSql(db, `
+		ALTER TABLE conversation
+		ADD COLUMN pinned BOOLEAN NOT NULL DEFAULT FALSE;
+	`); err != nil {
+		return err
+	}
+
+	if err := execSql(db, `
+		ALTER TABLE conversation
+		ADD COLUMN archived BOOLEAN NOT NULL DEFAULT FALSE;
+	`); err != nil {
+		return err
+	}
+
 	// add avatar field to folders table for preset emoji support
 	if err := execSql(db, `
 		ALTER TABLE folders
 		ADD COLUMN avatar VARCHAR(100) NULL;
+	`); err != nil {
+		return err
+	}
+
+	// add background field to folders table for custom background image
+	if err := execSql(db, `
+		ALTER TABLE folders
+		ADD COLUMN background VARCHAR(255) NULL;
 	`); err != nil {
 		return err
 	}
@@ -118,10 +140,32 @@ func doSqliteMigration(db *sql.DB) error {
 		return err
 	}
 
+	if err := execSql(db, `
+		ALTER TABLE conversation
+		ADD COLUMN pinned BOOLEAN NOT NULL DEFAULT FALSE;
+	`); err != nil {
+		return err
+	}
+
+	if err := execSql(db, `
+		ALTER TABLE conversation
+		ADD COLUMN archived BOOLEAN NOT NULL DEFAULT FALSE;
+	`); err != nil {
+		return err
+	}
+
 	// add avatar field to folders table for preset emoji support
 	if err := execSql(db, `
 		ALTER TABLE folders
 		ADD COLUMN avatar VARCHAR(100) NULL;
+	`); err != nil {
+		return err
+	}
+
+	// add background field to folders table for custom background image
+	if err := execSql(db, `
+		ALTER TABLE folders
+		ADD COLUMN background VARCHAR(255) NULL;
 	`); err != nil {
 		return err
 	}

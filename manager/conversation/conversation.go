@@ -20,6 +20,9 @@ type Conversation struct {
 	Message   []globals.Message `json:"message"`
 	Model     string            `json:"model"`
 	TaskID    string            `json:"task_id,omitempty"`
+	UpdatedAt string            `json:"updated_at,omitempty"`
+	Pinned    bool              `json:"pinned"`
+	Archived  bool              `json:"archived"`
 	EnableWeb bool              `json:"enable_web"`
 	Shared    bool              `json:"shared"`
 	Context   int               `json:"context"`

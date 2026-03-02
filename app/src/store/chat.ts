@@ -25,7 +25,7 @@ import {
   deleteAllConversations as doDeleteAllConversations,
   renameConversation as doRenameConversation,
   loadConversation,
-  getConversationList,
+  getConversationListPage,
 } from "@/api/history.ts";
 import { CustomMask, Mask } from "@/masks/types.ts";
 import { listMasks } from "@/api/mask.ts";
@@ -107,7 +107,7 @@ const offline = loadPreferenceModels(getOfflineModels());
 
 // ---------------------------------------------------------------------------
 // Preset-avatar persistence
-// Avatars (emoji) and preset names are client-side only — the server never
+// Avatars (emoji) and preset names are client-side only - the server never
 // stores them. We persist them in localStorage so they survive page refreshes.
 // ---------------------------------------------------------------------------
 const AVATAR_STORE_KEY = "conversation_avatars";
@@ -141,6 +141,57 @@ function forgetAvatar(id: number) {
 function clearAvatarStore() {
   localStorage.removeItem(AVATAR_STORE_KEY);
 }
+
+function mergeConversationHistory(
+  state: initialStateType,
+  incoming: ConversationInstance[],
+  append: boolean,
+) {
+  // preserve any existing preflight entry (id: -1) so it isn't wiped by server refreshes
+  const preflight = state.history.find((item) => item.id === -1);
+  // Load persisted avatars so page-refresh doesn't lose preset emoji/names
+  const avatarStore = loadAvatarStore();
+  const previous = state.history.filter((item) => item.id !== -1);
+  const base = append ? [...previous, ...incoming] : incoming;
+
+  const deduped: ConversationInstance[] = [];
+  const seen = new Set<number>();
+  for (const item of base) {
+    if (item.id === -1 || seen.has(item.id)) continue;
+    seen.add(item.id);
+    deduped.push(item);
+  }
+
+  // preserve avatar, name, and clientKey from existing entries so that:
+  // - a background refresh never flashes away the emoji/preset name
+  // - the stable React key (clientKey) is not lost, preventing AnimatePresence
+  //   from treating the entry as a new element and replaying enter animations
+  // Also fall back to localStorage for entries that have no in-memory avatar
+  // (e.g. after a full page refresh where the Redux store was reset).
+  const merged = deduped.map((item) => {
+    const existing = state.history.find((h) => h.id === item.id);
+    const stored = avatarStore[item.id];
+    const avatar = existing?.avatar || stored?.avatar;
+    const name = existing?.avatar ? existing.name : (stored?.avatar ? stored.name : item.name);
+    // Preserve folder_id correctly:
+    // - Server returns the field (number) -> use server value (authoritative)
+    // - Server omits the field (undefined, via omitempty) -> fall back to local
+    //   optimistic value set by updateConversationFolder after a drag/move
+    // Do NOT use ?? here: ?? treats null the same as undefined, which would
+    // incorrectly restore a folder_id after the user moves a conversation out.
+    const folder_id = item.folder_id !== undefined ? item.folder_id : existing?.folder_id;
+    return {
+      ...item,
+      ...(avatar && { avatar, name }),
+      ...(existing?.clientKey && { clientKey: existing.clientKey }),
+      // Only spread folder_id when it has a meaningful value (not null/undefined)
+      ...(folder_id != null ? { folder_id } : {}),
+    };
+  });
+
+  state.history = preflight ? [preflight, ...merged] : merged;
+}
+
 const chatSlice = createSlice({
   name: "chat",
   initialState: {
@@ -185,7 +236,7 @@ const chatSlice = createSlice({
 
       if (state.mask_item && conversation.messages.length === 0) {
         // context[0] is already the system message (synced with description),
-        // so just copy context as-is — no need to prepend description separately.
+        // so just copy context as-is - no need to prepend description separately.
         conversation.messages = state.mask_item.context.filter(
           (m) => m.content.trim().length > 0,
         );
@@ -348,38 +399,10 @@ const chatSlice = createSlice({
       state.current = -1;
     },
     setHistory: (state, action) => {
-      const newHistory = action.payload as ConversationInstance[];
-      // preserve any existing preflight entry (id: -1) so it isn't wiped by server refreshes
-      const preflight = state.history.find((item) => item.id === -1);
-      // Load persisted avatars so page-refresh doesn't lose preset emoji/names
-      const avatarStore = loadAvatarStore();
-      // preserve avatar, name, and clientKey from existing entries so that:
-      // - a background refresh never flashes away the emoji/preset name
-      // - the stable React key (clientKey) is not lost, preventing AnimatePresence
-      //   from treating the entry as a new element and replaying enter animations
-      // Also fall back to localStorage for entries that have no in-memory avatar
-      // (e.g. after a full page refresh where the Redux store was reset).
-      const merged = newHistory.map((item) => {
-        const existing = state.history.find((h) => h.id === item.id);
-        const stored = avatarStore[item.id];
-        const avatar = existing?.avatar || stored?.avatar;
-        const name = existing?.avatar ? existing.name : (stored?.avatar ? stored.name : item.name);
-        // Preserve folder_id correctly:
-        // - Server returns the field (number) → use server value (authoritative)
-        // - Server omits the field (undefined, via omitempty) → fall back to local
-        //   optimistic value set by updateConversationFolder after a drag/move
-        // Do NOT use ?? here: ?? treats null the same as undefined, which would
-        // incorrectly restore a folder_id after the user moves a conversation out.
-        const folder_id = item.folder_id !== undefined ? item.folder_id : existing?.folder_id;
-        return {
-          ...item,
-          ...(avatar && { avatar, name }),
-          ...(existing?.clientKey && { clientKey: existing.clientKey }),
-          // Only spread folder_id when it has a meaningful value (not null/undefined)
-          ...(folder_id != null ? { folder_id } : {}),
-        };
-      });
-      state.history = preflight ? [preflight, ...merged] : merged;
+      mergeConversationHistory(state, action.payload as ConversationInstance[], false);
+    },
+    appendHistory: (state, action) => {
+      mergeConversationHistory(state, action.payload as ConversationInstance[], true);
     },
     resetNewConversation: (state) => {
       state.conversations[-1] = { ...defaultConversation };
@@ -404,7 +427,7 @@ const chatSlice = createSlice({
     },
     upgradePreflight: (state, action) => {
       // Atomically promote the preflight entry (id: -1) to a real conversation id.
-      // Keeps the preset name and avatar — no intermediate state, no flash.
+      // Keeps the preset name and avatar - no intermediate state, no flash.
       const id = action.payload as number;
       const idx = state.history.findIndex((item) => item.id === -1);
       if (idx !== -1) {
@@ -549,6 +572,7 @@ const chatSlice = createSlice({
 
 export const {
   setHistory,
+  appendHistory,
   renameHistory,
   updateHistoryAvatar,
   setCurrent,
@@ -654,11 +678,18 @@ export function useConversationActions() {
 
       return state;
     },
-    refresh: async () => {
-      const resp = await getConversationList();
-      dispatch(setHistory(resp));
+    refresh: async (options?: { offset?: number; limit?: number; append?: boolean }) => {
+      const page = await getConversationListPage({
+        offset: options?.offset ?? 0,
+        limit: options?.limit ?? 100,
+      });
+      if (options?.append) {
+        dispatch(appendHistory(page.items));
+      } else {
+        dispatch(setHistory(page.items));
+      }
 
-      return resp;
+      return page;
     },
     mask: (mask: Mask, folderId?: number) => {
       dispatch(setMaskItem(mask));
@@ -672,7 +703,7 @@ export function useConversationActions() {
       }
       // Do NOT add a preflight history entry here.
       // The entry is deferred until the user actually sends the first message,
-      // which eliminates the flicker caused by the preflight → upgrade → rename cycle.
+      // which eliminates the flicker caused by the preflight -> upgrade -> rename cycle.
       setNumberMemory("history_conversation", -1);
     },
     selected: (model?: string) => {
@@ -887,7 +918,7 @@ export function useMessageActions() {
             dispatch(clearMaskFolderId());
           }
 
-          refresh(); // fire-and-forget — no await, no flash
+          refresh(); // fire-and-forget - no await, no flash
         } else {
           // Normal conversation: wait for the server list, then clean up.
           await refresh();
@@ -950,7 +981,7 @@ export function useWorking(): boolean {
 
 export const updateMasks = async (dispatch: AppDispatch) => {
   const resp = await listMasks();
-  // Always sync the store — even when the list is empty (e.g. user deleted all masks)
+  // Always sync the store - even when the list is empty (e.g. user deleted all masks)
   if (resp.status) dispatch(setCustomMasks(resp.data || []));
 
   return resp;

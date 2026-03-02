@@ -98,8 +98,11 @@ export type ConversationInstance = {
   name: string;
   message: Message[];
   model?: string;
+  updated_at?: string;
   shared?: boolean;
   avatar?: string;
+  pinned?: boolean;
+  archived?: boolean;
   folder_id?: number | null;
   folder_order?: number;
   titling?: boolean;

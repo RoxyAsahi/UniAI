@@ -1,4 +1,4 @@
-import { MoreHorizontal, Pencil, Trash2, Palette } from "lucide-react";
+import { MoreHorizontal, Pencil, Trash2, Palette, Download, Type } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,20 +11,27 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { FolderColorPicker } from "./FolderColorPicker";
+import { useTranslation } from "react-i18next";
 
 type FolderContextMenuProps = {
   currentColor?: string;
+  onEdit: () => void;
   onRename: () => void;
+  onExport: () => void;
   onDelete: () => void;
   onColorChange: (color: string) => void;
 };
 
 export function FolderContextMenu({
   currentColor,
+  onEdit,
   onRename,
+  onExport,
   onDelete,
   onColorChange,
 }: FolderContextMenuProps) {
+  const { t } = useTranslation();
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -37,9 +44,19 @@ export function FolderContextMenu({
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-36">
-        <DropdownMenuItem onClick={onRename}>
+        <DropdownMenuItem onClick={onEdit}>
           <Pencil className="h-3.5 w-3.5 mr-1.5" />
-          Rename
+          {t("folder.edit")}
+        </DropdownMenuItem>
+
+        <DropdownMenuItem onClick={onRename}>
+          <Type className="h-3.5 w-3.5 mr-1.5" />
+          {t("folder.rename")}
+        </DropdownMenuItem>
+
+        <DropdownMenuItem onClick={onExport}>
+          <Download className="h-3.5 w-3.5 mr-1.5" />
+          {t("folder.export")}
         </DropdownMenuItem>
 
         {/* Color picker — nested Popover inside DropdownMenu */}
@@ -50,7 +67,7 @@ export function FolderContextMenu({
               className="cursor-pointer"
             >
               <Palette className="h-3.5 w-3.5 mr-1.5" />
-              Color
+              {t("folder.color")}
               {currentColor && (
                 <span
                   className="ml-auto w-3 h-3 rounded-full shrink-0"
@@ -74,7 +91,7 @@ export function FolderContextMenu({
           className="text-destructive focus:text-destructive"
         >
           <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-          Delete
+          {t("folder.delete")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

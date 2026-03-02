@@ -12,8 +12,20 @@ import {
   createFolder,
   updateFolder as apiUpdateFolder,
   deleteFolder as apiDeleteFolder,
+  exportFolder as apiExportFolder,
   moveConversation,
 } from "@/api/folder";
+import { saveAsFile } from "@/utils/dom";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { FolderColorPicker } from "./FolderColorPicker";
 
 export type FolderTreeRef = {
   create: () => void;
@@ -37,6 +49,12 @@ export function FolderTree({
   const folders = useFolders();
   const [creating, setCreating] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
+  const [editOpen, setEditOpen] = useState(false);
+  const [editingFolderId, setEditingFolderId] = useState<number | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editAvatar, setEditAvatar] = useState("");
+  const [editBackground, setEditBackground] = useState("");
+  const [editColor, setEditColor] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   React.useImperativeHandle(innerRef, () => ({
@@ -81,7 +99,13 @@ export function FolderTree({
   const handleRename = async (id: number, name: string) => {
     if (!name.trim()) return;
     const folder = folders.find((f) => f.id === id);
-    const ok = await apiUpdateFolder(id, name.trim(), folder?.color);
+    const ok = await apiUpdateFolder(
+      id,
+      name.trim(),
+      folder?.color,
+      folder?.avatar,
+      folder?.background,
+    );
     if (ok) {
       if (folder) dispatch(updateFolderInStore({ ...folder, name: name.trim() }));
       toast.success(t("folder.rename-success"));
@@ -103,13 +127,76 @@ export function FolderTree({
   const handleColorChange = async (id: number, color: string) => {
     const folder = folders.find((f) => f.id === id);
     if (!folder) return;
-    const ok = await apiUpdateFolder(id, folder.name, color);
+    const ok = await apiUpdateFolder(
+      id,
+      folder.name,
+      color,
+      folder.avatar,
+      folder.background,
+    );
     if (ok) dispatch(updateFolderInStore({ ...folder, color }));
+  };
+
+  const openEditDialog = (id: number) => {
+    const folder = folders.find((f) => f.id === id);
+    if (!folder) return;
+
+    setEditingFolderId(id);
+    setEditName(folder.name || "");
+    setEditAvatar(folder.avatar || "");
+    setEditBackground(folder.background || "");
+    setEditColor(folder.color || "");
+    setEditOpen(true);
+  };
+
+  const handleEditSave = async () => {
+    if (!editingFolderId) return;
+    const name = editName.trim();
+    if (!name) return;
+
+    const ok = await apiUpdateFolder(
+      editingFolderId,
+      name,
+      editColor,
+      editAvatar,
+      editBackground,
+    );
+    if (!ok) {
+      toast.error(t("folder.rename-failed"));
+      return;
+    }
+
+    const folder = folders.find((f) => f.id === editingFolderId);
+    if (folder) {
+      dispatch(updateFolderInStore({
+        ...folder,
+        name,
+        color: editColor || undefined,
+        avatar: editAvatar || undefined,
+        background: editBackground || undefined,
+      }));
+    }
+
+    toast.success(t("folder.update-success"));
+    setEditOpen(false);
+    setEditingFolderId(null);
   };
 
   const handleMoveOut = async (conversationId: number) => {
     const ok = await moveConversation(conversationId, null);
     if (ok) dispatch(updateConversationFolder({ id: conversationId, folderId: null }));
+  };
+
+  const handleExport = async (id: number) => {
+    const data = await apiExportFolder(id);
+    if (!data) {
+      toast.error(t("folder.export-failed"));
+      return;
+    }
+
+    const filename = `${(data.folder.name || `folder-${id}`).replace(/[\\/:*?"<>|]/g, "_")}.json`;
+    saveAsFile(filename, JSON.stringify(data, null, 2));
+    toast.success(t("folder.export-success"));
   };
 
   if (folders.length === 0 && !creating) {
@@ -122,9 +209,11 @@ export function FolderTree({
         <FolderItem
           key={folder.id}
           folder={folder}
-          subFolders={folders.filter((f) => f.parent_id === folder.id)}
+          allFolders={folders}
           conversations={conversations}
           onRename={handleRename}
+          onEdit={openEditDialog}
+          onExport={handleExport}
           onDelete={handleDelete}
           onColorChange={handleColorChange}
           onConversationClick={onConversationClick}
@@ -169,6 +258,46 @@ export function FolderTree({
           </div>
         </div>
       )}
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("folder.edit")}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <div className="text-xs text-muted-foreground">{t("folder.name")}</div>
+              <Input value={editName} onChange={(e) => setEditName(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <div className="text-xs text-muted-foreground">{t("folder.icon")}</div>
+              <Input
+                value={editAvatar}
+                onChange={(e) => setEditAvatar(e.target.value)}
+                placeholder={t("folder.icon-placeholder")}
+              />
+            </div>
+            <div className="space-y-1">
+              <div className="text-xs text-muted-foreground">{t("folder.background")}</div>
+              <Input
+                value={editBackground}
+                onChange={(e) => setEditBackground(e.target.value)}
+                placeholder={t("folder.background-placeholder")}
+              />
+            </div>
+            <div className="space-y-1">
+              <div className="text-xs text-muted-foreground">{t("folder.color")}</div>
+              <FolderColorPicker value={editColor} onChange={setEditColor} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOpen(false)}>
+              {t("folder.cancel")}
+            </Button>
+            <Button onClick={handleEditSave}>{t("folder.save")}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

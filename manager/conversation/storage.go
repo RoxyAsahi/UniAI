@@ -17,7 +17,7 @@ func (c *Conversation) SaveConversation(db *sql.DB) bool {
 	data := utils.ToJson(c.GetMessage())
 	query := `
 		INSERT INTO conversation (user_id, conversation_id, conversation_name, data, model, task_id) VALUES (?, ?, ?, ?, ?, ?)
-		ON DUPLICATE KEY UPDATE conversation_name = VALUES(conversation_name), data = VALUES(data), task_id = VALUES(task_id)
+		ON DUPLICATE KEY UPDATE conversation_name = VALUES(conversation_name), data = VALUES(data), model = VALUES(model), task_id = VALUES(task_id), updated_at = CURRENT_TIMESTAMP
 	`
 
 	stmt, err := globals.PrepareDb(db, query)
@@ -59,14 +59,17 @@ func LoadConversation(db *sql.DB, userId int64, conversationId int64) *Conversat
 	}
 
 	var (
-		data   string
-		model  interface{}
-		taskID sql.NullString
+		data     string
+		model    interface{}
+		taskID   sql.NullString
+		folder   sql.NullInt64
+		pinned   sql.NullBool
+		archived sql.NullBool
 	)
 	err := globals.QueryRowDb(db, `
-		SELECT conversation_name, model, data, task_id FROM conversation
+		SELECT conversation_name, model, data, task_id, folder_id, pinned, archived, updated_at FROM conversation
 		WHERE user_id = ? AND conversation_id = ?
-		`, userId, conversationId).Scan(&conversation.Name, &model, &data, &taskID)
+		`, userId, conversationId).Scan(&conversation.Name, &model, &data, &taskID, &folder, &pinned, &archived, &conversation.UpdatedAt)
 	if value, ok := model.([]byte); ok {
 		conversation.Model = string(value)
 	} else {
@@ -75,6 +78,15 @@ func LoadConversation(db *sql.DB, userId int64, conversationId int64) *Conversat
 
 	if taskID.Valid {
 		conversation.TaskID = taskID.String
+	}
+	if folder.Valid {
+		conversation.FolderId = &folder.Int64
+	}
+	if pinned.Valid {
+		conversation.Pinned = pinned.Bool
+	}
+	if archived.Valid {
+		conversation.Archived = archived.Bool
 	}
 
 	if err != nil {
@@ -89,14 +101,27 @@ func LoadConversation(db *sql.DB, userId int64, conversationId int64) *Conversat
 	return &conversation
 }
 
-func LoadConversationList(db *sql.DB, userId int64) []Conversation {
-	var conversationList []Conversation
+func LoadConversationList(db *sql.DB, userId int64, offset int, limit int) ([]Conversation, bool) {
+	if offset < 0 {
+		offset = 0
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 200 {
+		limit = 200
+	}
+
+	conversationList := make([]Conversation, 0, limit+1)
 	rows, err := globals.QueryDb(db, `
-			SELECT conversation_id, conversation_name, folder_id FROM conversation WHERE user_id = ?
-			ORDER BY folder_order ASC, conversation_id DESC LIMIT 100
-	`, userId)
+			SELECT conversation_id, conversation_name, folder_id, updated_at, pinned, archived
+			FROM conversation
+			WHERE user_id = ?
+			ORDER BY archived ASC, pinned DESC, folder_order ASC, updated_at DESC, conversation_id DESC
+			LIMIT ? OFFSET ?
+	`, userId, limit+1, offset)
 	if err != nil {
-		return conversationList
+		return conversationList, false
 	}
 	defer func(rows *sql.Rows) {
 		err := rows.Close()
@@ -108,7 +133,7 @@ func LoadConversationList(db *sql.DB, userId int64) []Conversation {
 	for rows.Next() {
 		var conversation Conversation
 		var folderId sql.NullInt64
-		err := rows.Scan(&conversation.Id, &conversation.Name, &folderId)
+		err := rows.Scan(&conversation.Id, &conversation.Name, &folderId, &conversation.UpdatedAt, &conversation.Pinned, &conversation.Archived)
 		if err != nil {
 			continue
 		}
@@ -118,7 +143,12 @@ func LoadConversationList(db *sql.DB, userId int64) []Conversation {
 		conversationList = append(conversationList, conversation)
 	}
 
-	return conversationList
+	hasMore := len(conversationList) > limit
+	if hasMore {
+		conversationList = conversationList[:limit]
+	}
+
+	return conversationList, hasMore
 }
 
 func (c *Conversation) DeleteConversation(db *sql.DB) bool {
@@ -130,11 +160,70 @@ func (c *Conversation) DeleteConversation(db *sql.DB) bool {
 }
 
 func (c *Conversation) RenameConversation(db *sql.DB, name string) bool {
-	_, err := globals.ExecDb(db, "UPDATE conversation SET conversation_name = ? WHERE user_id = ? AND conversation_id = ?", name, c.UserID, c.Id)
+	_, err := globals.ExecDb(db, "UPDATE conversation SET conversation_name = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND conversation_id = ?", name, c.UserID, c.Id)
 	if err != nil {
 		return false
 	}
 	return true
+}
+
+func CloneConversation(db *sql.DB, userId int64, conversationId int64) (int64, error) {
+	var (
+		name     string
+		data     string
+		model    sql.NullString
+		taskID   sql.NullString
+		folderID sql.NullInt64
+	)
+
+	err := globals.QueryRowDb(db, `
+		SELECT conversation_name, data, model, task_id, folder_id
+		FROM conversation
+		WHERE user_id = ? AND conversation_id = ?
+	`, userId, conversationId).Scan(&name, &data, &model, &taskID, &folderID)
+	if err != nil {
+		return 0, err
+	}
+
+	newID := GetConversationLengthByUserID(db, userId) + 1
+	cloneName := utils.Extract(fmt.Sprintf("%s (copy)", name), 50, "...")
+
+	targetModel := globals.GPT3Turbo
+	if model.Valid && model.String != "" {
+		targetModel = model.String
+	}
+
+	var folder interface{}
+	if folderID.Valid {
+		folder = folderID.Int64
+	}
+
+	_, err = globals.ExecDb(db, `
+		INSERT INTO conversation (
+			user_id, conversation_id, conversation_name, data, model, task_id, folder_id, folder_order, pinned, archived, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, 0, FALSE, FALSE, CURRENT_TIMESTAMP)
+	`, userId, newID, cloneName, data, targetModel, taskID, folder)
+	if err != nil {
+		return 0, err
+	}
+
+	return newID, nil
+}
+
+func SetConversationPinned(db *sql.DB, userId int64, conversationId int64, pinned bool) error {
+	_, err := globals.ExecDb(db, `
+		UPDATE conversation SET pinned = ?
+		WHERE user_id = ? AND conversation_id = ?
+	`, pinned, userId, conversationId)
+	return err
+}
+
+func SetConversationArchived(db *sql.DB, userId int64, conversationId int64, archived bool) error {
+	_, err := globals.ExecDb(db, `
+		UPDATE conversation SET archived = ?
+		WHERE user_id = ? AND conversation_id = ?
+	`, archived, userId, conversationId)
+	return err
 }
 
 func DeleteAllConversations(db *sql.DB, user auth.User) error {

@@ -190,6 +190,10 @@ func CreateConversationTable(db *sql.DB) {
 		  data MEDIUMTEXT,
 		  model VARCHAR(255) NOT NULL DEFAULT 'gpt-3.5-turbo-0613',
 		  task_id VARCHAR(255) NULL,
+		  folder_id INT NULL,
+		  folder_order INT NOT NULL DEFAULT 0,
+		  pinned BOOLEAN NOT NULL DEFAULT FALSE,
+		  archived BOOLEAN NOT NULL DEFAULT FALSE,
 		  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		  UNIQUE KEY (user_id, conversation_id)
 		);
@@ -345,6 +349,8 @@ func CreateFoldersTable(db *sql.DB) {
 		  user_id INT NOT NULL,
 		  name VARCHAR(100) NOT NULL,
 		  color VARCHAR(20) NULL,
+		  avatar VARCHAR(100) NULL,
+		  background VARCHAR(255) NULL,
 		  parent_id INT NULL,
 		  sort_order INT NOT NULL DEFAULT 0,
 		  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
