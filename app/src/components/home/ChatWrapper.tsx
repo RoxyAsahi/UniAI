@@ -16,7 +16,6 @@ import { formatMessage } from "@/utils/processor.ts";
 import ChatInterface from "@/components/home/ChatInterface.tsx";
 import { clearHistoryState, getQueryParam } from "@/utils/path.ts";
 import { forgetMemory, popMemory } from "@/utils/memory.ts";
-import { alignSelector } from "@/store/settings.ts";
 import { FileArray } from "@/api/file.ts";
 import {
   NewConversationAction,
@@ -24,22 +23,20 @@ import {
   WebAction,
 } from "@/components/home/assemblies/ChatAction.tsx";
 import ChatSpace from "@/components/home/ChatSpace.tsx";
-import ActionButton, {
-  ActionCommand,
-} from "@/components/home/assemblies/ActionButton.tsx";
+import ActionButton from "@/components/home/assemblies/ActionButton.tsx";
 import ChatInput from "@/components/home/assemblies/ChatInput.tsx";
 import ScrollAction from "@/components/home/assemblies/ScrollAction.tsx";
 import { cn } from "@/components/ui/lib/utils.ts";
 import { goAuth } from "@/utils/app.ts";
 import { getModelFromId } from "@/conf/model.ts";
-import { ModelArea } from "@/components/home/ModelArea.tsx";
+import TopModelSelector from "@/components/home/TopModelSelector.tsx";
 import { toast } from "sonner";
 import { VoiceAction } from "@/components/VoiceProvider.tsx";
-import { AnimatePresence, motion } from "framer-motion";
 import NavActions from "@/components/app/NavActions.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { Menu } from "lucide-react";
 import { selectMenu, toggleMenu } from "@/store/menu.ts";
+import { chatBubbleSelector, widescreenModeSelector } from "@/store/settings.ts";
 
 type InterfaceProps = {
   scrollable: boolean;
@@ -77,8 +74,9 @@ function ChatWrapper() {
   const auth = useSelector(selectAuthenticated);
   const model = useSelector(selectModel);
   const menuOpen = useSelector(selectMenu);
-  const target = useRef(null);
-  const align = useSelector(alignSelector);
+  const chatBubble = useSelector(chatBubbleSelector);
+  const widescreenMode = useSelector(widescreenModeSelector);
+  const target = useRef<HTMLTextAreaElement>(null);
 
   const working = useWorking();
   const supportModels = useSelector(selectSupportModels);
@@ -165,7 +163,13 @@ function ChatWrapper() {
   }, []);
 
   return (
-    <div className={`chat-container chat-openwebui-layout bg-muted/25 dark:bg-muted/10`}>
+    <div
+      className={cn(
+        "chat-container chat-openwebui-layout bg-muted/25 dark:bg-muted/10",
+        chatBubble ? "chat-layout-bubble" : "chat-layout-list",
+        widescreenMode && "chat-layout-widescreen",
+      )}
+    >
       <div className={`chat-wrapper`}>
         <div className="chat-floating-navbar">
           <div
@@ -184,114 +188,44 @@ function ChatWrapper() {
               </Button>
             </div>
           )}
+          <div className="chat-floating-model-selector">
+            <TopModelSelector />
+          </div>
           <div className="chat-floating-actions">
             <NavActions floating />
           </div>
         </div>
         <Interface setTarget={setInstance} scrollable={!visible} />
-        <div className={`chat-input border-t bg-muted/25`}>
-          <motion.div
-            className={`flex flex-row items-center p-1.5 pb-0.5`}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, ease: "easeOut" }}
-          >
-            <AnimatePresence>
-              <motion.div
-                key="model-area"
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.8 }}
-                transition={{ duration: 0.3 }}
-              >
-                <ModelArea />
-              </motion.div>
-              <motion.div
-                key="web-action"
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.8 }}
-                transition={{ duration: 0.3, delay: 0.1 }}
-              >
-                <WebAction />
-              </motion.div>
-              <motion.div
-                key="file-action"
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.8 }}
-                transition={{ duration: 0.3, delay: 0.2 }}
-              >
-                <FileAction files={files} dispatch={fileDispatch} />
-              </motion.div>
-              <motion.div
-                key="voice-action"
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.8 }}
-                transition={{ duration: 0.3, delay: 0.3 }}
-              >
-                <VoiceAction />
-              </motion.div>
-              <motion.div
-                key="timeline-action"
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.8 }}
-                transition={{ duration: 0.3, delay: 0.4 }}
-              >
-                <TimelineAction />
-              </motion.div>
-              <motion.div
-                key="scroll-action"
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.8 }}
-                transition={{ duration: 0.3, delay: 0.5 }}
-              >
-                <ScrollAction
-                  visible={visible}
-                  setVisibility={setVisibility}
-                  target={instance}
-                />
-              </motion.div>
-            </AnimatePresence>
-            <motion.div
-              className={`grow`}
-              initial={{ scaleX: 0 }}
-              animate={{ scaleX: 1 }}
-              transition={{ duration: 0.5, ease: "easeOut" }}
-            />
-            <AnimatePresence key="new">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.8 }}
-                transition={{ duration: 0.3, delay: 0.6 }}
-              >
-                <NewConversationAction />
-              </motion.div>
-            </AnimatePresence>
-          </motion.div>
-          <div className={`flex flex-col gap-2 px-3 pb-2`}>
-            <div className={`relative w-full`}>
+        <div className={`chat-input chat-input-openwebui bg-muted/25`}>
+          <div className="chat-input-panel">
+            <div className="chat-input-textarea-wrap">
               <ChatInput
-                className={cn(
-                  "rounded-none border-0 bg-transparent w-full",
-                  align && "align",
-                )}
+                className={cn("chat-input-textarea")}
                 target={target}
                 value={input}
                 onValueChange={setInput}
                 onEnterPressed={handleSend}
               />
             </div>
-            <div className="flex items-center justify-end gap-2">
-              <ActionCommand input={input} />
-              <ActionButton
-                working={working}
-                onClick={() => (working ? handleCancel() : handleSend())}
-              />
+            <div className="chat-input-toolbar">
+              <div className="chat-input-toolbar-left">
+                <NewConversationAction />
+                <WebAction />
+                <FileAction files={files} dispatch={fileDispatch} />
+                <VoiceAction />
+                <TimelineAction />
+                <ScrollAction
+                  visible={visible}
+                  setVisibility={setVisibility}
+                  target={instance}
+                />
+              </div>
+              <div className="chat-input-toolbar-right">
+                <ActionButton
+                  working={working}
+                  onClick={() => (working ? handleCancel() : handleSend())}
+                />
+              </div>
             </div>
           </div>
         </div>

@@ -96,6 +96,14 @@
     }
   }
 
+  .message-name {
+    font-size: 13px;
+    line-height: 1.2;
+    color: hsl(var(--text-secondary));
+    user-select: none;
+    padding: 0 0.25rem;
+  }
+
   .message-quota {
     display: flex;
     flex-direction: row;
@@ -143,6 +151,19 @@
     padding: 8px 16px;
     border-radius: var(--radius);
     transition: 0.25s linear;
+  }
+
+  .message-content.user-bubble-content {
+    background: hsl(var(--muted) / 0.7);
+    border-color: transparent;
+    border-radius: 1.5rem;
+    padding: 10px 14px;
+  }
+
+  .message-content.assistant-bubble-content {
+    background: transparent !important;
+    border-color: transparent !important;
+    padding: 4px 2px;
   }
 
   .message-actions-wrapper {
@@ -263,22 +284,18 @@
     align-items: flex-end;
   }
 
-  @media (max-width: 768px) {
-    .content-wrapper {
-      flex-direction: column !important;
-      align-items: flex-start;
+  .content-wrapper.bubble-user-wrapper {
+    width: 100%;
+    justify-content: flex-end;
 
-      .message-main {
-        width: 100%;
-      }
-
-      .message-avatar-wrapper {
-        margin-left: 0;
-        margin-right: 0;
-        margin-bottom: 0.5rem;
-      }
+    .message-main {
+      flex: 0 1 auto;
+      width: auto;
+      max-width: 90%;
     }
+  }
 
+  @media (max-width: 768px) {
     .message-toolbar {
       padding: 0 !important;
     }
@@ -287,14 +304,35 @@
       margin-left: 0;
     }
 
-    &.user {
+    &.list-layout {
       .content-wrapper {
-        align-items: flex-end;
+        flex-direction: column !important;
+        align-items: flex-start;
+
+        .message-main {
+          width: 100%;
+        }
+
+        .message-avatar-wrapper {
+          margin-left: 0;
+          margin-right: 0;
+          margin-bottom: 0.5rem;
+        }
       }
+
+      &.user {
+        .content-wrapper {
+          align-items: flex-end;
+        }
+      }
+    }
+
+    .content-wrapper.bubble-user-wrapper .message-main {
+      max-width: 90%;
     }
   }
 
-  &.user {
+  &.user.list-layout {
     .content-wrapper {
       flex-direction: row-reverse;
     }

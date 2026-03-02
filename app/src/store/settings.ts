@@ -15,6 +15,8 @@ export const sendKeys = ["Ctrl + Enter", "Enter"];
 export const initialSettings = {
   context: true,
   align: false,
+  chat_bubble: true,
+  widescreen_mode: false,
   history: 8,
   sender: !isMobile(), // default [mobile: Ctrl + Enter, pc: Enter]
   max_tokens: 2000,
@@ -41,6 +43,8 @@ export const settingsSlice = createSlice({
     dialog: false,
     context: getBooleanMemory("context", true), // keep context
     align: getBooleanMemory("align", false), // chat textarea align center
+    chat_bubble: getBooleanMemory("chat_bubble", true), // user message bubble layout
+    widescreen_mode: getBooleanMemory("widescreen_mode", false), // full width messages
     history: getNumberMemory("history_context", 8), // max history context length
     sender: getBooleanMemory("sender", !isMobile()), // sender (false: Ctrl + Enter, true: Enter)
     max_tokens: getNumberMemory("max_tokens", 2000), // max tokens
@@ -80,6 +84,14 @@ export const settingsSlice = createSlice({
     setAlign: (state, action) => {
       state.align = action.payload as boolean;
       setBooleanMemory("align", action.payload);
+    },
+    setChatBubble: (state, action) => {
+      state.chat_bubble = action.payload as boolean;
+      setBooleanMemory("chat_bubble", action.payload);
+    },
+    setWidescreenMode: (state, action) => {
+      state.widescreen_mode = action.payload as boolean;
+      setBooleanMemory("widescreen_mode", action.payload);
     },
     setHistory: (state, action) => {
       state.history = action.payload as number;
@@ -156,6 +168,8 @@ export const settingsSlice = createSlice({
     resetSettings: (state) => {
       state.context = initialSettings.context;
       state.align = initialSettings.align;
+      state.chat_bubble = initialSettings.chat_bubble;
+      state.widescreen_mode = initialSettings.widescreen_mode;
       state.history = initialSettings.history;
       state.sender = initialSettings.sender;
       state.max_tokens = initialSettings.max_tokens;
@@ -177,6 +191,8 @@ export const settingsSlice = createSlice({
 
       setBooleanMemory("context", initialSettings.context);
       setBooleanMemory("align", initialSettings.align);
+      setBooleanMemory("chat_bubble", initialSettings.chat_bubble);
+      setBooleanMemory("widescreen_mode", initialSettings.widescreen_mode);
       setNumberMemory("history_context", initialSettings.history);
       setBooleanMemory("sender", initialSettings.sender);
       setNumberMemory("max_tokens", initialSettings.max_tokens);
@@ -206,6 +222,8 @@ export const {
   closeDialog,
   setContext,
   setAlign,
+  setChatBubble,
+  setWidescreenMode,
   setHistory,
   setSender,
   setMaxTokens,
@@ -234,6 +252,10 @@ export const contextSelector = (state: RootState): boolean =>
   state.settings.context;
 export const alignSelector = (state: RootState): boolean =>
   state.settings.align;
+export const chatBubbleSelector = (state: RootState): boolean =>
+  state.settings.chat_bubble;
+export const widescreenModeSelector = (state: RootState): boolean =>
+  state.settings.widescreen_mode;
 export const historySelector = (state: RootState): number =>
   state.settings.history;
 export const senderSelector = (state: RootState): boolean =>

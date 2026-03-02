@@ -30,6 +30,7 @@ import { selectUsername } from "@/store/auth.ts";
 import { appLogo } from "@/conf/env.ts";
 import { motion } from "framer-motion";
 import { ThinkContent } from "@/components/ThinkContent";
+import { chatBubbleSelector } from "@/store/settings.ts";
 
 type MessageProps = {
   index: number;
@@ -43,15 +44,21 @@ type MessageProps = {
   selected?: boolean;
   onFocus?: (event: React.MouseEvent<HTMLDivElement, MouseEvent>) => void;
   onFocusLeave?: (event: React.MouseEvent<HTMLDivElement, MouseEvent>) => void;
+  chatBubble?: boolean;
 };
 
 function MessageSegment(props: MessageProps) {
   const ref = useRef(null);
   const { message } = props;
+  const chatBubble = useSelector(chatBubbleSelector);
 
   return (
     <div
-      className={`message ${message.role}`}
+      className={cn(
+        "message",
+        message.role,
+        chatBubble ? "bubble-layout" : "list-layout",
+      )}
       ref={ref}
       data-message-index={props.index}
       onClick={props.onFocus}
@@ -66,7 +73,7 @@ function MessageSegment(props: MessageProps) {
         }
       }}
     >
-      <MessageContent {...props} />
+      <MessageContent {...props} chatBubble={chatBubble} />
       <MessageQuota message={message} />
     </div>
   );
@@ -127,11 +134,13 @@ function MessageContent({
   selected,
   username,
   sharing,
+  chatBubble = true,
 }: MessageProps) {
   const { t } = useTranslation();
   const isUser = message.role === "user";
   const hasContent = message.content.length > 0;
   const isAssistant = message.role === "assistant";
+  const isSystem = message.role === "system";
   const isOutput = message.end === false;
   const notInOutput = message.end !== false;
   const disableDelete = isAssistant && end && !notInOutput;
@@ -141,6 +150,12 @@ function MessageContent({
 
   const [open, setOpen] = useState(false);
   const [editedMessage, setEditedMessage] = useState<string | undefined>("");
+  const showAvatar = !(isUser && chatBubble);
+  const messageLabel = isAssistant
+    ? t("chat.assistant-name", "助手")
+    : isSystem
+    ? t("chat.system-name", "系统")
+    : null;
 
   // parse think content
   const parseThinkContent = (content: string) => {
@@ -180,7 +195,7 @@ function MessageContent({
   };
 
   return (
-    <div className={"content-wrapper"}>
+    <div className={cn("content-wrapper", isUser && chatBubble && "bubble-user-wrapper")}>
       <EditorProvider
         submittable={true}
         onSubmit={(value) => onEvent && onEvent("edit", index, value)}
@@ -189,23 +204,33 @@ function MessageContent({
         value={editedMessage ?? ""}
         onChange={setEditedMessage}
       />
-      <div className={`message-avatar-wrapper`}>
-        {isUser ? (
-          <Avatar
-            className={`message-avatar animate-fade-in`}
-            username={username ?? user}
-          />
-        ) : (
-          <img
-            src={appLogo}
-            alt={``}
-            className={`message-avatar animate-fade-in`}
-          />
-        )}
-      </div>
+      {showAvatar && (
+        <div className={`message-avatar-wrapper`}>
+          {isUser ? (
+            <Avatar
+              className={`message-avatar animate-fade-in`}
+              username={username ?? user}
+            />
+          ) : (
+            <img
+              src={appLogo}
+              alt={``}
+              className={`message-avatar animate-fade-in`}
+            />
+          )}
+        </div>
+      )}
       <div className="message-main">
+        {chatBubble && messageLabel && (
+          <div className="message-name">{messageLabel}</div>
+        )}
         <div
-          className={`relative message-content dark:bg-muted/40 border dark:border-transparent hover:border-border`}
+          className={cn(
+            "relative message-content dark:bg-muted/40 border dark:border-transparent hover:border-border",
+            isUser && chatBubble && "user-bubble-content",
+            isUser && !chatBubble && "user-list-content",
+            (isAssistant || isSystem) && chatBubble && "assistant-bubble-content",
+          )}
         >
           {hasContent ? (
             <>

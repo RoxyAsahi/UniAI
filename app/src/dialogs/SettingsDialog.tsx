@@ -54,6 +54,8 @@ function SettingsDialog() {
   const open = useSelector(settings.dialogSelector);
 
   const align = useSelector(settings.alignSelector);
+  const chatBubble = useSelector(settings.chatBubbleSelector);
+  const widescreenMode = useSelector(settings.widescreenModeSelector);
   const hideToolbar = useSelector(settings.hideToolbarSelector);
   const hideToolbarText = useSelector(settings.hideToolbarTextSelector);
   const context = useSelector(settings.contextSelector);
@@ -288,6 +290,32 @@ function SettingsDialog() {
                       checked={align}
                       onCheckedChange={(state: boolean) => {
                         dispatch(settings.setAlign(state));
+                      }}
+                    />
+                  </div>
+                  <div className={`item`}>
+                    <div className={`name`}>
+                      {t("settings.chat-bubble", "消息气泡模式")}
+                    </div>
+                    <div className={`grow`} />
+                    <Checkbox
+                      className={`value`}
+                      checked={chatBubble}
+                      onCheckedChange={(state: boolean) => {
+                        dispatch(settings.setChatBubble(state));
+                      }}
+                    />
+                  </div>
+                  <div className={`item`}>
+                    <div className={`name`}>
+                      {t("settings.widescreen-mode", "宽屏消息布局")}
+                    </div>
+                    <div className={`grow`} />
+                    <Checkbox
+                      className={`value`}
+                      checked={widescreenMode}
+                      onCheckedChange={(state: boolean) => {
+                        dispatch(settings.setWidescreenMode(state));
                       }}
                     />
                   </div>

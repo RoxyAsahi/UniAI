@@ -29,13 +29,13 @@ function ChatInput({
 
   const mobile = useMobile();
 
-  const rows = mobile ? 3 : 5;
+  const rows = 1;
   const maxRows = mobile ? 10 : 15;
 
   return (
     <FlexibleTextarea
       id={`input`}
-      className={cn("input-box thin-scrollbar min-h-[60px]", className)}
+      className={cn("input-box thin-scrollbar", className)}
       ref={target}
       value={value}
       rows={rows}
